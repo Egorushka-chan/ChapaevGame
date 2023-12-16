@@ -1,0 +1,52 @@
+{
+  "text_entry_line":
+  {
+    "colours":
+    {
+      "normal_text": "#000000",
+      "dark_bg": "#FFFFFF",
+      "text_cursor": "#000000"
+    },
+    "font":
+    {
+        "name": "samsung",
+        "size": "18",
+        "bold": "0",
+        "italic": "0",
+        "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    },
+    "misc":
+    {
+      "border_width": "2",
+      "shadow_width": "5"
+    }
+  },
+  "#standart":
+  {
+    "colours": {
+      "normal_text": "#000000",
+      "dark_bg": "#00000000"
+    },
+    "font": {
+      "name": "samsung",
+      "size": "18",
+      "bold": "0",
+      "italic": "0",
+      "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    }
+  },
+  "#mainlabel":
+  {
+    "colours": {
+      "normal_text": "#000000",
+      "dark_bg": "#00000000"
+    },
+    "font": {
+      "name": "samsung",
+      "size": "24",
+      "bold": "0",
+      "italic": "0",
+      "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    }
+  }
+}
