@@ -1,17 +1,13 @@
-import hashlib
 import os
 import random
-import sqlite3
-import turtle
+import sys
 
 import pygame as pg, pygame_gui as pgui
 import re as regex
+from Modules.Database import Database, User
 
-STATIC_SALT = 'VintageStory'
+
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
-SOUND_FORCE = 0.1
-
-pg.init()
 
 
 def get_image(name: str):
@@ -26,79 +22,9 @@ def get_font(name: str):
     return os.path.join(DIR_PATH, 'Assets/Fonts', name)
 
 
-def generate_hash(password, login):
-    # Вставляем посередине пароля логин
-    salted_password = password[len(password) // 2:] + login + password[:len(password) // 2]
-    # Убираем последний символ в пароле
-    salted_password = salted_password[:-1]
-    # Добавляем статическую соль
-    salted_password.join(STATIC_SALT)
-
-    # Создаём хеш пароля
-    sha512_password = hashlib.sha512(salted_password.encode())
-    # Возвращаем в шестнадцатеричном виде
-    return sha512_password.hexdigest()
-
-
-def close():
-    pass
-
-
-class User:
-    def __init__(self, id: int, nickname: str, login: str, password: str):
-        self.id: int = id
-        self.nickname: str = nickname
-        self.login: str = login
-        self.password: str = password
-
-
-class Database:
-    def __init__(self):
-        self.db_path = os.path.join(DIR_PATH, 'database.db')
-        if os.path.exists(self.db_path):
-            self.conn = sqlite3.connect('database.db')
-            self.cur = self.conn.cursor()
-        else:
-            # если файла базы данных не обнаружено, то создаём новую
-            self.conn = sqlite3.connect('database.db')
-            self.cur = self.conn.cursor()
-
-            command = (r'CREATE TABLE "Users" ("ID"	INTEGER NOT NULL,"Nickname"	INTEGER NOT NULL,"Login"	INTEGER '
-                       r'NOT NULL UNIQUE,"Password"	INTEGER NOT NULL,PRIMARY KEY("ID" AUTOINCREMENT))')
-            self.cur.execute(command)
-            command = ('CREATE TABLE "Games" ("ID"	INTEGER NOT NULL,"FirstPlayer"	INTEGER NOT NULL,"SecondPlayer"	'
-                       'INTEGER NOT NULL,"Winner"	INTEGER NOT NULL,"GameTime"	INTEGER,"ReplayFile"	TEXT,'
-                       'PRIMARY KEY("ID" AUTOINCREMENT),FOREIGN KEY("FirstPlayer") REFERENCES "Users"("ID"))')
-            self.cur.execute(command)
-            self.conn.commit()
-        pass
-
-    def query(self, command: str, values=None):
-        if values:
-            self.cur.execute(command, values)
-        else:
-            self.cur.execute(command)
-        result = self.cur.fetchall()
-        self.conn.commit()
-        return result
-
-    def authorize_user(self, login: str, password: str):
-        password_hash = generate_hash(password, login)
-        # поиск в базе данных
-        values = (login, password_hash)
-        res = self.query('SELECT * FROM Users WHERE Users.Login == ? and Users.Password == ?', (login, password_hash))
-        return res
-
-    def registrate_user(self, nick: str, login: str, password: str):
-        password_hash = generate_hash(password, login)
-        # запись в базу данных
-        values = (nick, login, password_hash)
-        self.query('INSERT INTO Users(Nickname, Login, Password) Values (?,?,?)', values)
-
-
 class AppContext:
     def __init__(self):
-        self.database = Database()
+        self.database = Database(DIR_PATH)
         self.user = None
         self.current_scene = None
 
@@ -109,7 +35,6 @@ class AppContext:
             self.current_scene = MainScene(self, (1280, 720))
         else:
             ModuleNotFoundError(f'Сцены {scene} не существует')
-
 
 class Scene:
     def __init__(self, appcontext: AppContext, resolution: (int, int)):
@@ -127,42 +52,152 @@ class Scene:
 
         self.timer = pg.time.Clock()
 
-    def create_label(self, rectangle, text, type):
+    def create_label(self, rectangle: (int, int, int, int), text, type):
         label = pgui.elements.UILabel(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
                                       text=text,
                                       object_id=type)
         self.ui_elements.append(label)
         return label
 
-    def create_button(self, rectangle, text, type):
+    def create_button(self, rectangle: (int, int, int, int), text, type):
         button = pgui.elements.UIButton(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
                                         text=text,
                                         object_id=type)
         self.ui_elements.append(button)
         return button
 
-    def create_input(self, rectange, hidden=False):
+    def create_input(self, rectange: (int, int, int, int), hidden=False):
         textbox = pgui.elements.UITextEntryLine(relative_rect=pg.Rect(*rectange), manager=self.ui_manager)
         textbox.set_text_length_limit(16)
         textbox.set_text_hidden(hidden)
         self.ui_elements.append(textbox)
         return textbox
 
+    def create_message(self, rectangle: (int, int, int, int), message: str):
+        return pgui.windows.UIMessageWindow(pg.Rect(rectangle), message,
+                                            self.ui_manager,
+                                            window_title='Внимание', object_id='#message_window')
+
+    def create_drop(self, rectangle: (int, int, int, int), list: list[str], start=1, type = None):
+        start_value = list[start]
+        if type is None:
+            drop = pgui.elements.UIDropDownMenu(options_list=list, starting_option=start_value,
+                                            relative_rect=pg.Rect(*rectangle), manager=self.ui_manager)
+        else:
+            drop = pgui.elements.UIDropDownMenu(options_list=list, starting_option=start_value,
+                                                relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
+                                                object_id=type)
+        return drop
+
 
 class MainScene(Scene):
     def __init__(self, appcontext: AppContext, resolution: (int, int)):
         super().__init__(appcontext, resolution)
 
-        loop = True
-        time_delta = 0
+        self.battle_log = ''
 
-        while loop:
+        # создание разметки
+        self.create_static_markup()
+
+        hello_label = self.create_label((30, 24, 260, 31), 'Добро пожаловать!', '#mainlabel')
+        nickname_label = self.create_label((30, 65, 260, 23), appcontext.user.nickname, '#standart')
+
+        self.bot_button = self.create_button((27, 111, 256, 44), 'Новая игра с ботом', '#buttonblack')
+        self.player_button = self.create_button((27, 186, 256, 44), 'Новая игра вдвоём', '#buttonblack')
+
+        # музыкальная панель
+        music_main_panel = pgui.elements.UIPanel(pg.Rect(27, 263, 256, 233), manager=self.ui_manager,
+                                                 object_id="#musicpanel")
+        music_title_panel = pgui.elements.UIPanel(pg.Rect(56, 250, 93, 31), manager=self.ui_manager,
+                                                  object_id="#musicpanel")
+        music_title_label = self.create_label((63, 252, 75, 23), 'Музыка', '#musiclabel')
+
+        self.music_drop = self.create_music_drop()
+
+        music_loud_label = self.create_label((56, 342, 100, 55), 'Громкость', '#musiclabel')
+        self.music_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(56, 409, 196, 20), value_range=(0, 100), start_value=0,
+                                                        manager=self.ui_manager)
+
+        total_battles_label = self.create_label((59, 566, 102, 25), 'Кол-во игр', '#standart')
+        self.total_bot_battles_label = self.create_label((56, 608, 104, 25), f'С ботами: {appcontext.user.bot_games}',
+                                                    '#standart')
+        self.total_player_battles_label = self.create_label((56, 650, 90, 25), f'Вдвоём: {appcontext.user.player_games}',
+                                                       '#standart')
+
+        match_info_label = self.create_label((1032, 24, 190, 25), 'Информация о матче', '#standart')
+        self.match_player1_label = self.create_label((997, 74, 190, 25), 'Игрок 1:', '#standart')
+        self.match_player2_label = self.create_label((997, 109, 190, 25), 'Игрок 2:', '#standart')
+        match_log_textbox = pgui.elements.UITextBox('', pg.Rect(986, 150, 280, 214), manager=self.ui_manager,
+                                                    object_id='#whitetextbox')
+
+        control_main_label = self.create_label((1073, 393, 105, 22), 'Управление', '#standart')
+        control = list()
+        control.append('Задание слайдером')
+        control.append('Интерактивное')
+        self.control_drop = self.create_drop((998, 430, 260, 30), control)
+
+        self.force_label = self.create_label((998, 508, 150, 25), f'Сила удара: {10.0}f', '#standart')
+        self.force_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(998, 545, 257, 20), value_range=(0.0, 10.0),
+                                                        start_value=10.0,
+                                                        manager=self.ui_manager)
+
+        self.loop = True
+        self.time_delta = 0
+
+        self.go_loop()
+
+    def go_loop(self):
+        while self.loop:
+            for element in self.pg_elements:
+                self.display.blit(*element)
+
             for event in pg.event.get():
+                self.ui_manager.process_events(event)
                 if event.type == pg.QUIT:
-                    loop = False
+                    self.loop = False
+                if event.type == pgui.UI_DROP_DOWN_MENU_CHANGED:
+                    if event.ui_element == self.music_drop:
+                        print("Music option:", event.text)
+                    elif event.ui_element == self.control_drop:
+                        print("Control option:", event.text)
+                if event.type == pgui.UI_BUTTON_PRESSED:
+                    if event.ui_element == self.bot_button:
+                        print('Bot button')
+                    elif event.ui_element == self.player_button:
+                        print('Player button')
+                if event.type == pgui.UI_HORIZONTAL_SLIDER_MOVED:
+                    if event.ui_element == self.music_scroll:
+                        print('Music slider:', event.value)
+                    elif event.ui_element == self.force_scroll:
+                        print('Force slider:', event.value)
 
+            self.ui_manager.update(self.time_delta)
+            self.ui_manager.draw_ui(self.display)
             pg.display.flip()
-            time_delta = self.timer.tick(100) / 1000
+            self.time_delta = self.timer.tick(100) / 1000
+
+    def create_music_drop(self):
+        path = os.path.join(DIR_PATH, 'Assets/Music')
+        non_music = 'boom.mp3','turn_on.mp3'
+        music = list()
+        for files in os.listdir(path):
+            if files[-4:] == '.mp3':
+                if not files in non_music:
+                    music.append(files)
+        music_drop = self.create_drop((38, 290, 224, 30), music, type='#musicdrop')
+        return music_drop
+
+    def create_static_markup(self):
+        grey_box1 = pg.Surface((310, 720))
+        grey_box1.fill('#E3E3E3')
+        grey_box2 = pg.Surface((310, 720))
+        grey_box2.fill('#D9D9D9')
+        self.pg_elements.append((grey_box1, (0, 0)))
+        self.pg_elements.append((grey_box2, (970, 0)))
+
+        control_line = pg.Surface((280, 5))
+        control_line.fill('black')
+        self.pg_elements.append((control_line, (985, 380)))
 
 
 class LoginScene(Scene):
@@ -212,10 +247,7 @@ class LoginScene(Scene):
                                 logined = True
                                 appcontext.user = User(*result[0])
                             else:
-                                popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
-                                                                     'Пользователь не найден',
-                                                                     self.ui_manager,
-                                                                     window_title='Ошибка', object_id='#message_window')
+                                popup = self.create_message((200, 200, 300, 200), 'Пользователь не найден')
 
                     elif event.ui_element == registration_button:
                         if not login_error.visible and not password_error.visible and not nickname_error.visible:
@@ -224,16 +256,9 @@ class LoginScene(Scene):
                                                                     login_textbox.get_text(),
                                                                     password_textbox.get_text())
                             except BaseException as ex:
-                                popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
-                                                                     str(ex),
-                                                                     self.ui_manager,
-                                                                     window_title='Ошибка', object_id='#message_window')
+                                popup = self.create_message((200, 200, 300, 200), f'Ошибка {ex}')
                             else:
-                                popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
-                                                                     'Пользователь зарегистрирован',
-                                                                     self.ui_manager,
-                                                                     window_title='Успешно',
-                                                                     object_id='#message_window')
+                                popup = self.create_message((200, 200, 300, 200), 'Пользователь зарегистрирован')
                                 login_textbox.set_text('')
                                 password_textbox.set_text('')
                                 nickname_textbox.set_text('')
@@ -272,27 +297,6 @@ class LoginScene(Scene):
         if logined:
             appcontext.open_scene('Main')
 
-    def create_label(self, rectangle, text, type):
-        label = pgui.elements.UILabel(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
-                                      text=text,
-                                      object_id=type)
-        self.ui_elements.append(label)
-        return label
-
-    def create_button(self, rectangle, text, type):
-        button = pgui.elements.UIButton(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
-                                        text=text,
-                                        object_id=type)
-        self.ui_elements.append(button)
-        return button
-
-    def create_input(self, rectange, hidden=False):
-        textbox = pgui.elements.UITextEntryLine(relative_rect=pg.Rect(*rectange), manager=self.ui_manager)
-        textbox.set_text_length_limit(16)
-        textbox.set_text_hidden(hidden)
-        self.ui_elements.append(textbox)
-        return textbox
-
     def validation(self, text, specials=False):
         result = ''
         if len(text) < 6:
@@ -308,44 +312,16 @@ class LoginScene(Scene):
         return result
 
 
-# class Popup:
-#     def __init__(self, parent_surface, message):
-#         self.parent_surface = parent_surface
-#         self.message = message
-#         self.surface = pg.Surface((0, 0))
-#         self.surface.fill('White')
-#         self.showing_progress = 0
-#         self.speed = 1000  # сколько миллисекунд развёртывание
-#
-#         self.font = pg.Font(get_font('SamsungSans-Regular.ttf'), size=44)
-#         self.render = self.font.render(message, True, 'Black').convert_alpha()
-#         self.resolution = self.render.get_width() + 20, self.render.get_height() + 20
-#         self.ui_manager = pgui.UIManager(self.resolution)
-#         self.button = pgui.elements.UIButton(relative_rect=pg.Rect(50,50,50,50), manager=self.ui_manager,
-#                                         text='OK')
-#
-#     def draw(self, time_delta):
-#         if self.showing_progress < 1:
-#             self.showing_progress = self.showing_progress + (1000 / self.speed) * time_delta
-#
-#             current_x = self.resolution[0] * self.showing_progress
-#             current_y = self.resolution[1] * self.showing_progress
-#
-#             self.surface = pg.Surface((current_x, current_y))
-#             self.surface.fill('White')
-#             self.button.set_dimensions((current_x,current_y))
-#
-#
-#             self.surface.blit(pg.transform.smoothscale(self.render, (current_x, current_y)), (0, 0))
-#             self.parent_surface.blit(self.surface, (20, 20))
-#             self.ui_manager.update(time_delta)
-#             self.ui_manager.draw_ui(self.parent_surface)
-#
-#             print(f'{self.showing_progress:.2}')
-#         else:
-#             pass
-
-
 if __name__ == '__main__':
     app_context = AppContext()
-    app_context.open_scene('Login')
+
+    skip_authorisation = False
+    for arg in sys.argv:
+        if arg == '-skip':
+            skip_authorisation = True
+
+    if skip_authorisation:
+        app_context.user = User(999, 'Anonymous', 'Anonymous', 'Anonymous')
+        app_context.open_scene('Main')
+    else:
+        app_context.open_scene('Login')

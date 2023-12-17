@@ -33,6 +33,23 @@
       "shape_corner_radius": "10"
     }
   },
+  "#buttonblack": {
+    "colours": {
+      "normal_bg": "#000000",
+      "normal_text": "#FFFFFF"
+    },
+    "font": {
+      "name": "samsung",
+      "size": "18",
+      "bold": "0",
+      "italic": "0",
+      "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    },
+    "misc": {
+      "shape": "rounded_rectangle",
+      "shape_corner_radius": "10"
+    }
+  },
   "#mainlabel": {
     "colours": {
       "normal_text": "#000000",
@@ -72,6 +89,18 @@
       "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
     }
   },
+  "#musiclabel": {
+    "colours": {
+      "normal_text": "#FFFFFF"
+    },
+    "font": {
+      "name": "samsung",
+      "size": "18",
+      "bold": "0",
+      "italic": "0",
+      "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    }
+  },
   "#message_window.text_box": {
     "colours":
     {
@@ -84,6 +113,17 @@
       "bold": "0",
       "italic": "0",
       "regular_path": "Assets/Fonts/SamsungSans-Regular.ttf"
+    }
+  },
+  "#musicpanel": {
+    "colours":
+    {
+      "dark_bg": "#820000",
+      "normal_border": "#000000"
+    },
+    "misc": {
+      "shape": "rounded_rectangle",
+      "shape_corner_radius": "10"
     }
   },
   "#message_window.#dismiss_button": {
@@ -116,6 +156,52 @@
     "misc": {
       "border_width": "2",
       "shadow_width": "5"
+    }
+  },
+  "#musicdrop": {
+    "colours": {
+      "normal_border": "#000000",
+      "dark_bg": "#FFFFFF"
+    },
+    "misc": {
+      "shape": "rounded_button",
+      "shape_corner_radius": "10"
+    }
+  },
+  "horizontal_slider":
+     {
+         "colours":
+         {
+             "normal_bg": "black",
+             "dark_bg": "white"
+         },
+         "misc":
+         {
+            "shape": "rounded_button",
+            "shape_corner_radius": "10"
+         }
+     },
+     "horizontal_slider.button":
+     {
+         "misc":
+         {
+            "border_width": "1"
+         }
+     },
+     "horizontal_slider.#sliding_button":
+     {
+         "colours":
+         {
+            "normal_bg": "#FF0000"
+         }
+     },
+  "text_box": {
+    "colours": {
+      "dark_bg": "white",
+      "normal_text": "black"
+    },
+    "misc": {
+      "shadow_width": "2"
     }
   }
 }
