@@ -1,6 +1,9 @@
 import hashlib
 import os
+import random
 import sqlite3
+import turtle
+
 import pygame as pg, pygame_gui as pgui
 import re as regex
 
@@ -97,27 +100,77 @@ class AppContext:
     def __init__(self):
         self.database = Database()
         self.user = None
+        self.current_scene = None
+
+    def open_scene(self, scene):
+        if scene == 'Login':
+            self.current_scene = LoginScene(self, (600, 900))
+        elif scene == 'Main':
+            self.current_scene = MainScene(self, (1280, 720))
+        else:
+            ModuleNotFoundError(f'Сцены {scene} не существует')
 
 
-class LoginScene:
-    def __init__(self, appcontext : AppContext):
-        resolution = 600, 900
-        self.element_list = []
-        self.ui_elements = []
-        display = pg.display.set_mode(resolution)
-
-        # Очень важная строка. Стили, хранятся в папке Assets
+class Scene:
+    def __init__(self, appcontext: AppContext, resolution: (int, int)):
+        pg.init()
+        self.resolution = resolution
         self.ui_manager = pgui.UIManager(resolution, 'Assets/theme.json')
+        self.display = pg.display.set_mode(resolution)
+        self.display.fill('White')
+        self.ui_elements = []
+        self.pg_elements = []
 
         icon = pg.image.load(get_image('chapaev_title.png')).convert_alpha()
         pg.display.set_icon(icon)
         pg.display.set_caption('Компьютерная игра "Шашки-Чапаев"')
 
-        scene_background = pg.image.load(get_image('login_form.png')).convert_alpha()
-        self.element_list.append((scene_background, (0, 0)))
+        self.timer = pg.time.Clock()
 
-        timer = pg.time.Clock()
-        display.fill('White')
+    def create_label(self, rectangle, text, type):
+        label = pgui.elements.UILabel(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
+                                      text=text,
+                                      object_id=type)
+        self.ui_elements.append(label)
+        return label
+
+    def create_button(self, rectangle, text, type):
+        button = pgui.elements.UIButton(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
+                                        text=text,
+                                        object_id=type)
+        self.ui_elements.append(button)
+        return button
+
+    def create_input(self, rectange, hidden=False):
+        textbox = pgui.elements.UITextEntryLine(relative_rect=pg.Rect(*rectange), manager=self.ui_manager)
+        textbox.set_text_length_limit(16)
+        textbox.set_text_hidden(hidden)
+        self.ui_elements.append(textbox)
+        return textbox
+
+
+class MainScene(Scene):
+    def __init__(self, appcontext: AppContext, resolution: (int, int)):
+        super().__init__(appcontext, resolution)
+
+        loop = True
+        time_delta = 0
+
+        while loop:
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    loop = False
+
+            pg.display.flip()
+            time_delta = self.timer.tick(100) / 1000
+
+
+class LoginScene(Scene):
+    def __init__(self, appcontext: AppContext, resolution: (int, int)):
+        super().__init__(appcontext, resolution)
+
+        scene_background = pg.image.load(get_image('login_form.png')).convert_alpha()
+        self.pg_elements.append((scene_background, (0, 0)))
 
         # создание разметки
         main_label = self.create_label((230, 160, 150, 70), 'Авторизация', "#mainlabel")
@@ -139,10 +192,11 @@ class LoginScene:
 
         loop = True
         time_delta = 0
+        logined = False
 
         while loop:
-            for element in self.element_list:
-                display.blit(*element)
+            for element in self.pg_elements:
+                self.display.blit(*element)
 
             for event in pg.event.get():
                 self.ui_manager.process_events(event)
@@ -151,19 +205,38 @@ class LoginScene:
                 if event.type == pgui.UI_BUTTON_PRESSED:
                     if event.ui_element == login_button:
                         if not login_error.visible and not password_error.visible:
-                            result = appcontext.database.authorize_user(login_textbox.get_text(), password_textbox.get_text())
+                            result = appcontext.database.authorize_user(login_textbox.get_text(),
+                                                                        password_textbox.get_text())
                             if result:
                                 loop = False
-                                appcontext.user = User(*result)
+                                logined = True
+                                appcontext.user = User(*result[0])
                             else:
                                 popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
                                                                      'Пользователь не найден',
                                                                      self.ui_manager,
-                                                                     window_title='D', object_id='#message_window')
+                                                                     window_title='Ошибка', object_id='#message_window')
 
                     elif event.ui_element == registration_button:
                         if not login_error.visible and not password_error.visible and not nickname_error.visible:
-                            print('Registration button pressed')
+                            try:
+                                appcontext.database.registrate_user(nickname_textbox.get_text(),
+                                                                    login_textbox.get_text(),
+                                                                    password_textbox.get_text())
+                            except BaseException as ex:
+                                popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
+                                                                     str(ex),
+                                                                     self.ui_manager,
+                                                                     window_title='Ошибка', object_id='#message_window')
+                            else:
+                                popup = pgui.windows.UIMessageWindow(pg.Rect(200, 200, 200, 200),
+                                                                     'Пользователь зарегистрирован',
+                                                                     self.ui_manager,
+                                                                     window_title='Успешно',
+                                                                     object_id='#message_window')
+                                login_textbox.set_text('')
+                                password_textbox.set_text('')
+                                nickname_textbox.set_text('')
                 if event.type == pgui.UI_TEXT_ENTRY_CHANGED:
                     if event.ui_element == login_textbox:
                         validation = self.validation(login_textbox.get_text(), specials=True)
@@ -188,9 +261,16 @@ class LoginScene:
                             nickname_error.visible = 0
 
             self.ui_manager.update(time_delta)
-            self.ui_manager.draw_ui(display)
+            self.ui_manager.draw_ui(self.display)
             pg.display.flip()
-            time_delta = timer.tick(100) / 1000
+            time_delta = self.timer.tick(100) / 1000
+
+        for element in self.ui_elements:
+            element.kill()
+        pg.quit()
+
+        if logined:
+            appcontext.open_scene('Main')
 
     def create_label(self, rectangle, text, type):
         label = pgui.elements.UILabel(relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
@@ -267,4 +347,5 @@ class LoginScene:
 
 
 if __name__ == '__main__':
-    LoginScene(AppContext())
+    app_context = AppContext()
+    app_context.open_scene('Login')
