@@ -5,7 +5,7 @@ import sys
 import pygame as pg, pygame_gui as pgui
 import re as regex
 from Modules.Database import Database, User
-
+from Modules.Board import Board
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -35,6 +35,7 @@ class AppContext:
             self.current_scene = MainScene(self, (1280, 720))
         else:
             ModuleNotFoundError(f'Сцены {scene} не существует')
+
 
 class Scene:
     def __init__(self, appcontext: AppContext, resolution: (int, int)):
@@ -78,11 +79,11 @@ class Scene:
                                             self.ui_manager,
                                             window_title='Внимание', object_id='#message_window')
 
-    def create_drop(self, rectangle: (int, int, int, int), list: list[str], start=1, type = None):
+    def create_drop(self, rectangle: (int, int, int, int), list: list[str], start=1, type=None):
         start_value = list[start]
         if type is None:
             drop = pgui.elements.UIDropDownMenu(options_list=list, starting_option=start_value,
-                                            relative_rect=pg.Rect(*rectangle), manager=self.ui_manager)
+                                                relative_rect=pg.Rect(*rectangle), manager=self.ui_manager)
         else:
             drop = pgui.elements.UIDropDownMenu(options_list=list, starting_option=start_value,
                                                 relative_rect=pg.Rect(*rectangle), manager=self.ui_manager,
@@ -115,14 +116,16 @@ class MainScene(Scene):
         self.music_drop = self.create_music_drop()
 
         music_loud_label = self.create_label((56, 342, 100, 55), 'Громкость', '#musiclabel')
-        self.music_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(56, 409, 196, 20), value_range=(0, 100), start_value=0,
-                                                        manager=self.ui_manager)
+        self.music_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(56, 409, 196, 20), value_range=(0, 100),
+                                                             start_value=0,
+                                                             manager=self.ui_manager)
 
         total_battles_label = self.create_label((59, 566, 102, 25), 'Кол-во игр', '#standart')
         self.total_bot_battles_label = self.create_label((56, 608, 104, 25), f'С ботами: {appcontext.user.bot_games}',
-                                                    '#standart')
-        self.total_player_battles_label = self.create_label((56, 650, 90, 25), f'Вдвоём: {appcontext.user.player_games}',
-                                                       '#standart')
+                                                         '#standart')
+        self.total_player_battles_label = self.create_label((56, 650, 90, 25),
+                                                            f'Вдвоём: {appcontext.user.player_games}',
+                                                            '#standart')
 
         match_info_label = self.create_label((1032, 24, 190, 25), 'Информация о матче', '#standart')
         self.match_player1_label = self.create_label((997, 74, 190, 25), 'Игрок 1:', '#standart')
@@ -138,8 +141,12 @@ class MainScene(Scene):
 
         self.force_label = self.create_label((998, 508, 150, 25), f'Сила удара: {10.0}f', '#standart')
         self.force_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(998, 545, 257, 20), value_range=(0.0, 10.0),
-                                                        start_value=10.0,
-                                                        manager=self.ui_manager)
+                                                             start_value=10.0,
+                                                             manager=self.ui_manager)
+        board_surface = pg.Surface((550, 550))
+        board_surface.fill('Black')
+        self.pg_elements.append((board_surface, (365, 85)))
+        self.board = Board(board_surface)
 
         self.loop = True
         self.time_delta = 0
@@ -150,6 +157,7 @@ class MainScene(Scene):
         while self.loop:
             for element in self.pg_elements:
                 self.display.blit(*element)
+            self.board.draw(self.time_delta)
 
             for event in pg.event.get():
                 self.ui_manager.process_events(event)
@@ -178,7 +186,7 @@ class MainScene(Scene):
 
     def create_music_drop(self):
         path = os.path.join(DIR_PATH, 'Assets/Music')
-        non_music = 'boom.mp3','turn_on.mp3'
+        non_music = 'boom.mp3', 'turn_on.mp3'
         music = list()
         for files in os.listdir(path):
             if files[-4:] == '.mp3':
