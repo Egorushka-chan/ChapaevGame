@@ -146,7 +146,7 @@ class MainScene(Scene):
         board_surface = pg.Surface((550, 550))
         board_surface.fill('Black')
         self.pg_elements.append((board_surface, (365, 85)))
-        self.board = Board(board_surface)
+        self.board = Board(board_surface, DIR_PATH)
 
         self.loop = True
         self.time_delta = 0
