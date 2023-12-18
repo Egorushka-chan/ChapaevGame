@@ -62,16 +62,16 @@ class Board:
         lower_border = pg.Surface((self.width, self.borders_size))
         upper_border.fill('#572A00')
         lower_border.fill('#572A00')
-        self.markup.append((upper_border, (0, 0)))
-        self.markup.append((lower_border, (0, self.height - self.borders_size)))
+        self.markup.append((upper_border, (indentations[0], indentations[1])))
+        self.markup.append((lower_border, (indentations[0], indentations[1] + self.height - self.borders_size)))
 
         right_border = pg.Surface((self.borders_size, self.height - self.borders_size * 2))
         right_border.fill('#572A00')
-        self.markup.append((right_border, (0, self.borders_size)))
+        self.markup.append((right_border, (indentations[0], indentations[1] + self.borders_size)))
 
         left_border = pg.Surface((self.borders_size, self.height - self.borders_size * 2))
         left_border.fill('#572A00')
-        self.markup.append((left_border, (self.width - self.borders_size, self.borders_size)))
+        self.markup.append((left_border, (indentations[0] + self.width - self.borders_size, indentations[1] + self.borders_size)))
 
         field_size = self.width - self.borders_size * 2, self.height - self.borders_size * 2
 
@@ -89,7 +89,7 @@ class Board:
                     color = '#321B00'  # черно-каштановый
                 cell = pg.Surface(self.cell_size)
                 cell.fill(color)
-                pos = self.borders_size + self.cell_size[0] * (x - 1), self.borders_size + self.cell_size[1] * (y - 1)
+                pos = indentations[0] + self.borders_size + self.cell_size[0] * (x - 1), indentations[1] + self.borders_size + self.cell_size[1] * (y - 1)
                 self.markup.append((cell, pos))
                 self.cells.append((x, y, cell))
 
@@ -124,13 +124,13 @@ class Board:
                 if cell[0] == x:
                     center_tur = cell[2].get_rect().center
                     if cell[1] == self.black_line:
-                        center = self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), self.borders_size + \
+                        center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.black_line - 1)
                         new = Checker(self.parent_surface, center, 1, 25, Checker.Color.Black, self.dir_path)
                         self.checkers.append(new)
                     elif cell[1] == self.white_line:
-                        center = self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), self.borders_size + \
+                        center = self.indentations[0] +self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1),self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.white_line - 1)
                         new = Checker(self.parent_surface, center, 1, 25, Checker.Color.White, self.dir_path)
@@ -170,12 +170,12 @@ if __name__ == '__main__':
 
     display = pg.display.set_mode((1000,1000))
     display.fill('White')
-    surface = pg.Surface(RES)
-    surface.fill('#DECAFF')
+    game_surface = pg.Surface(RES)
+    game_surface.fill('#DECAFF')
 
     DIR = r"D:\Ukron Studio\ChapaevGame"
 
-    board = Board(surface, board_size, DIR)
+    board = Board(game_surface, board_size, indentations, DIR)
 
     Board.start_new_game(board)
 
@@ -185,7 +185,7 @@ if __name__ == '__main__':
 
     while loop:
 
-        display.blit(surface, indentations)
+        display.blit(game_surface, indentations)
         board.draw(dt)
 
         for event in pg.event.get():
@@ -193,7 +193,7 @@ if __name__ == '__main__':
                 loop = False
             if event.type == pg.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    board_rect = surface.get_rect(topleft=indentations)
+                    board_rect = game_surface.get_rect(topleft=indentations)
                     if board_rect.collidepoint(event.pos):
                         board.process_click((event.pos[0] - indentations[0], event.pos[1] - indentations[1]))
 
