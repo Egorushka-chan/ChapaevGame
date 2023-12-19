@@ -5,6 +5,29 @@ from enum import Enum
 import pygame as pg
 
 
+def calculate_point_diffs(point1, point2):
+    """ Тригонометрическая работа с точками
+
+    :param point1: точка №1
+    :param point2: точка №2
+    """
+    # разница между точками
+    dx = point1[0] - point2[0]
+    dy = point1[1] - point2[1]
+    # dy впереди из-за позиционирования pygame. -dx что-бы 1 четверть была начальной.
+    # Углы растут с 1 (от 0) до 4 степени (до 360)
+    rads = math.atan2(dy, -dx)
+    rads %= 2 * math.pi
+    degs = math.degrees(rads)
+    # x и y нужны для расчета направления шашки
+    x = math.cos(rads)
+    y = math.sin(rads)
+    print(degs)
+    print(x)
+    print(y)
+    return degs, rads, x, y
+
+
 class Checker:
     class Color(Enum):
         Black = 0
@@ -50,7 +73,7 @@ class Checker:
 
 
 class Board:
-    def __init__(self, parent_surface: pg.Surface, board_size : (int,int), indentations : (int,int) , dir_path):
+    def __init__(self, parent_surface: pg.Surface, board_size: (int, int), indentations: (int, int), dir_path):
         self.indentations = indentations
         self.dir_path = dir_path
         self.parent_surface = parent_surface
@@ -71,7 +94,8 @@ class Board:
 
         left_border = pg.Surface((self.borders_size, self.height - self.borders_size * 2))
         left_border.fill('#572A00')
-        self.markup.append((left_border, (indentations[0] + self.width - self.borders_size, indentations[1] + self.borders_size)))
+        self.markup.append(
+            (left_border, (indentations[0] + self.width - self.borders_size, indentations[1] + self.borders_size)))
 
         field_size = self.width - self.borders_size * 2, self.height - self.borders_size * 2
 
@@ -89,7 +113,8 @@ class Board:
                     color = '#321B00'  # черно-каштановый
                 cell = pg.Surface(self.cell_size)
                 cell.fill(color)
-                pos = indentations[0] + self.borders_size + self.cell_size[0] * (x - 1), indentations[1] + self.borders_size + self.cell_size[1] * (y - 1)
+                pos = indentations[0] + self.borders_size + self.cell_size[0] * (x - 1), indentations[
+                    1] + self.borders_size + self.cell_size[1] * (y - 1)
                 self.markup.append((cell, pos))
                 self.cells.append((x, y, cell))
 
@@ -99,10 +124,12 @@ class Board:
         self.selected_checker = None
         self.checkers: list[Checker] = list()
 
+        # заготовка для создания руки
         self.hand = pg.image.load(os.path.join(self.dir_path, 'Assets/Images/punch.png')).convert_alpha()
         self.hand_size = 54, 40  # исходя из размера png
         self.hand = pg.transform.scale(self.hand, self.hand_size)
         self.point_angle = None
+        self.punch_coordinats = None
 
     def start_new_game(self):
         self.black_line = 1
@@ -115,6 +142,23 @@ class Board:
         for checker in self.checkers:
             checker.draw(time_delta)
 
+        if self.point_angle:
+            hand, pos = self.hand_to_checker(self.selected_checker)
+            self.parent_surface.blit(hand, pos)
+
+    def hand_to_checker(self, checker):
+        ch_center = checker.center
+        degree, rads, x, y = calculate_point_diffs(ch_center, self.point_angle)
+        rotated_hand = pg.transform.rotate(self.hand, -degree)  # минусовой градус для правильного оффсета
+        if (degree > 165) and (degree < 195):
+            rotated_hand = pg.transform.flip(rotated_hand, False, True)
+
+        # на сколько рука удалена от центра шашки
+        offset = pg.math.Vector2(checker.diameter * 1.9, 0).rotate(degree)
+        pos = rotated_hand.get_rect(center=checker.center + offset)
+
+        return rotated_hand, pos
+
     def fill_checkers(self):
         if len(self.checkers) != 0:
             self.checkers.clear()
@@ -124,13 +168,15 @@ class Board:
                 if cell[0] == x:
                     center_tur = cell[2].get_rect().center
                     if cell[1] == self.black_line:
-                        center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), self.indentations[1] + self.borders_size + \
+                        center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), \
+                                 self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.black_line - 1)
                         new = Checker(self.parent_surface, center, 1, 25, Checker.Color.Black, self.dir_path)
                         self.checkers.append(new)
                     elif cell[1] == self.white_line:
-                        center = self.indentations[0] +self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1),self.indentations[1] + self.borders_size + \
+                        center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), \
+                                 self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.white_line - 1)
                         new = Checker(self.parent_surface, center, 1, 25, Checker.Color.White, self.dir_path)
@@ -158,6 +204,8 @@ class Board:
                         self.selected_checker = checker
                     # убираем руку при изменении выбранной шашки
                     self.point_angle = None
+                    # return чтобы не проходил elif дальше по коду
+                    return
             elif self.selected_checker:
                 self.point_angle = pos
 
@@ -168,7 +216,7 @@ if __name__ == '__main__':
     board_size = 550, 550
     indentations = (RES[0] - board_size[0]) / 2, (RES[0] - board_size[1]) / 2
 
-    display = pg.display.set_mode((1000,1000))
+    display = pg.display.set_mode((1000, 1000))
     display.fill('White')
     game_surface = pg.Surface(RES)
     game_surface.fill('#DECAFF')
@@ -186,6 +234,7 @@ if __name__ == '__main__':
     while loop:
 
         display.blit(game_surface, indentations)
+        game_surface.fill('#DECAFF')
         board.draw(dt)
 
         for event in pg.event.get():
