@@ -4,6 +4,8 @@ from enum import Enum
 
 import pygame as pg
 
+MAX_FORCE = 10.0
+
 
 def calculate_point_diffs(point1, point2):
     """ Тригонометрическая работа с точками
@@ -25,18 +27,20 @@ def calculate_point_diffs(point1, point2):
     return degs, rads, x, y
 
 
-class Checker:
-    class Color(Enum):
-        Black = 0
-        White = 1
+class Color(Enum):
+    Black = 0
+    White = 1
+    Non = 2
 
+
+class Checker:
     def __init__(self, parent_surface, center: (int | float, int | float), mass, diameter, side: Color, dir_path):
         self.dir_path = dir_path
         self.center = center
+        self.side: Color = side
         self.diameter = diameter
         self.mass = mass
         self.parent_surface = parent_surface
-        self.side = side
 
         # выбор шашки и её свечение при этом
         self.selected: bool = False
@@ -46,12 +50,12 @@ class Checker:
             (self.diameter + self.shine_range) * 2, (self.diameter + self.shine_range) * 2))
 
         # цвет обводки и спрайт шашки
-        self.color = ''
-        if self.side == self.Color.White:
-            self.color = "White"
+        self.fill = ''
+        if self.side == Color.White:
+            self.fill = "White"
             image_path = os.path.join(self.dir_path, 'Assets/Images/white_checker.png')
         else:
-            self.color = "Black"
+            self.fill = "Black"
             image_path = os.path.join(self.dir_path, 'Assets/Images/black_checker.png ')
         self.image = pg.image.load(image_path).convert_alpha()
         self.image = pg.transform.scale(self.image, (self.diameter * 2, self.diameter * 2))
@@ -61,12 +65,83 @@ class Checker:
                           self.diameter * 2, self.diameter * 2)
 
     def draw(self, time_delta):
-        pg.draw.circle(self.parent_surface, self.color, self.center, self.diameter, 0)
+        pg.draw.circle(self.parent_surface, self.fill, self.center, self.diameter, 0)
         if self.selected:
             shine_pos = self.rectangle[0] - self.shine_range, self.rectangle[1] - self.shine_range
             self.parent_surface.blit(self.shine, shine_pos)
 
         self.parent_surface.blit(self.image, (self.rectangle[0], self.rectangle[1]))
+
+
+class ForceSkillChoicer:
+    def __init__(self, parent_surface):
+        self.parent_surface = parent_surface
+        self.visible = False
+        self.size = 72, 48
+
+        self.pos: [int, int] = 0, 0
+        self.selection_line_pos = 0
+        self.selection_line_direction = 1
+        self.speed = MAX_FORCE * 3  # дистанция силы в секунду
+
+        self.elements_count = 7
+
+        self.selection_line = pg.Surface((self.size[0] / (self.elements_count * 2), self.size[1]))
+
+    def create_lines(self):
+        lines = []
+        weak_color = '#4DFF00'
+        mod_color = '#00FFFF'
+        hard_color = '#AB00FF'
+        max_color = '#FF0000'
+        elements_width = self.size[0] / (self.elements_count * 2)
+        elements_start_height = self.size[1] / 2
+        elements_append_height = (self.size[1] - elements_start_height) / self.elements_count
+        force_per_element = MAX_FORCE / self.elements_count
+        for i in range(1, self.elements_count + 1):
+            line = pg.Surface((elements_width, elements_start_height + elements_append_height * i))
+            line_force = force_per_element * i
+            line_color = weak_color
+            if line_force > MAX_FORCE / 4:
+                line_color = mod_color
+            if line_force > MAX_FORCE / 2:
+                line_color = hard_color
+            if line_force > MAX_FORCE / 1.1:
+                line_color = max_color
+            line.fill(line_color)
+            pos = self.pos[0] + elements_width * ((i - 1) * 2), self.pos[1] + (elements_append_height * (7 - i)) / 2
+            lines.append((line, pos))
+        line = pg.Surface((elements_width, self.size[1]))
+        line.fill(max_color)
+        lines.append((line, (self.pos[0] + self.size[0], self.pos[1])))
+        return lines
+
+    def append(self, pos):
+        self.pos = pos
+        self.visible = True
+
+    def hide(self):
+        self.visible = False
+
+    def draw_line(self, evolve):
+        self.selection_line_pos = self.selection_line_pos + (self.speed * evolve) * self.selection_line_direction
+        if self.selection_line_pos > MAX_FORCE:
+            self.selection_line_pos = MAX_FORCE
+            self.selection_line_direction = -1
+        elif self.selection_line_pos < 0:
+            self.selection_line_pos = 0
+            self.selection_line_direction = 1
+        line_pos = self.pos[0] + self.size[0] * (self.selection_line_pos / MAX_FORCE), self.pos[1]
+        self.parent_surface.blit(self.selection_line, line_pos)
+
+    def draw(self, time_delta):
+        lines = self.create_lines()
+        for line in lines:
+            self.parent_surface.blit(*line)
+        self.draw_line(time_delta)
+
+    def get(self) -> float:
+        return self.selection_line_pos
 
 
 class Board:
@@ -115,18 +190,24 @@ class Board:
                 self.markup.append((cell, pos))
                 self.cells.append((x, y, cell))
 
+        # код для текущего состояния доски
         self.black_line = 1
         self.white_line = rang
+        self.block_side: Color = Color.Non
 
+        # код для хранения шашек
         self.selected_checker = None
         self.checkers: list[Checker] = list()
 
-        # заготовка для создания руки
+        # код для создания руки
         self.hand = pg.image.load(os.path.join(self.dir_path, 'Assets/Images/punch.png')).convert_alpha()
         self.hand_size = 54, 40  # исходя из размера png
         self.hand = pg.transform.scale(self.hand, self.hand_size)
         self.point_angle = None
-        self.punch_coordinats = None
+        self.punch_coordinates: [int, int] = 0, 0
+
+        # код для зажатой мыши
+        self.force_choicer = ForceSkillChoicer(self.parent_surface)
 
     def start_new_game(self):
         self.black_line = 1
@@ -143,9 +224,13 @@ class Board:
             hand, pos = self.hand_to_checker(self.selected_checker)
             self.parent_surface.blit(hand, pos)
 
+        if self.force_choicer.visible:
+            self.force_choicer.draw(time_delta)
+
     def hand_to_checker(self, checker):
         ch_center = checker.center
         degree, rads, x, y = calculate_point_diffs(ch_center, self.point_angle)
+        self.punch_coordinates = x, y
         rotated_hand = pg.transform.rotate(self.hand, degree)  # минусовой градус для правильного оффсета
         if (degree > 165) and (degree < 195):
             rotated_hand = pg.transform.flip(rotated_hand, False, True)
@@ -169,14 +254,14 @@ class Board:
                                  self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.black_line - 1)
-                        new = Checker(self.parent_surface, center, 1, 25, Checker.Color.Black, self.dir_path)
+                        new = Checker(self.parent_surface, center, 1, 25, Color.Black, self.dir_path)
                         self.checkers.append(new)
                     elif cell[1] == self.white_line:
                         center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), \
                                  self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.white_line - 1)
-                        new = Checker(self.parent_surface, center, 1, 25, Checker.Color.White, self.dir_path)
+                        new = Checker(self.parent_surface, center, 1, 25, Color.White, self.dir_path)
                         self.checkers.append(new)
 
     def process_click(self, pos: (int, int)):
@@ -191,20 +276,45 @@ class Board:
                 distance = math.sqrt(math.pow(tested_point[0], 2) + math.pow(tested_point[1], 2))
                 # Если расстояние меньше диаметра, то шашка нажата
                 if distance <= checker.diameter:
-                    if checker.selected:
-                        checker.selected = False
-                        self.selected_checker = None
-                    else:
-                        if self.selected_checker:
-                            self.selected_checker.selected = False
-                        checker.selected = True
-                        self.selected_checker = checker
-                    # убираем руку при изменении выбранной шашки
-                    self.point_angle = None
-                    # return чтобы не проходил elif дальше по коду
-                    return
+                    if not self.force_choicer.visible:
+                        if checker.selected:
+                            checker.selected = False
+                            self.selected_checker = None
+                        else:
+                            if self.selected_checker:
+                                self.selected_checker.selected = False
+                            if self.block_side != checker.side:
+                                checker.selected = True
+                                self.selected_checker = checker
+                        # убираем руку при изменении выбранной шашки
+                        self.point_angle = None
+                        # return чтобы не проходил elif дальше по коду
+                        return
             elif self.selected_checker:
                 self.point_angle = pos
+
+    def process_handling(self, pos, button_type):
+        if self.point_angle:
+            if button_type == 1:
+                self.point_angle = pos
+                return
+
+    def forcing(self, state, pos):
+        if self.point_angle:
+            if state:
+                self.force_choicer.append(pos)
+            else:
+                self.force_choicer.hide()
+                self.point_angle = None
+                force = self.force_choicer.get()
+                self.selected_checker.selected = False
+                self.selected_checker = None
+                self.punch(force, self.punch_coordinates)
+
+    def punch(self, force : float, punch_coordinates: [int,int]):
+        punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1] * -1
+        print(f'Совершен удар: сила = {force}; направление = {punch_coordinates}')
+
 
 
 if __name__ == '__main__':
@@ -237,11 +347,20 @@ if __name__ == '__main__':
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 loop = False
+            board_rect = game_surface.get_rect(topleft=indentations)
             if event.type == pg.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    board_rect = game_surface.get_rect(topleft=indentations)
                     if board_rect.collidepoint(event.pos):
                         board.process_click((event.pos[0] - indentations[0], event.pos[1] - indentations[1]))
+            else:
+                if pg.mouse.get_pressed()[0]:
+                    if board_rect.collidepoint(event.pos):
+                        board.process_handling((event.pos[0] - indentations[0], event.pos[1] - indentations[1]), 1)
+
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == 3 and board_rect.collidepoint(event.pos):
+                board.forcing(True, (event.pos[0] - indentations[0], event.pos[1] - indentations[1]))
+            elif event.type == pg.MOUSEBUTTONUP and event.button == 3 and board.force_choicer.visible:
+                board.forcing(False, (event.pos[0] - indentations[0], event.pos[1] - indentations[1]))
 
         pg.display.flip()
         dt = timer.tick(100) / 1000
