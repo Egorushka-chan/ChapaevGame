@@ -22,9 +22,6 @@ def calculate_point_diffs(point1, point2):
     # x и y нужны для расчета направления шашки
     x = math.cos(rads)
     y = math.sin(rads)
-    print(degs)
-    print(x)
-    print(y)
     return degs, rads, x, y
 
 
@@ -149,12 +146,12 @@ class Board:
     def hand_to_checker(self, checker):
         ch_center = checker.center
         degree, rads, x, y = calculate_point_diffs(ch_center, self.point_angle)
-        rotated_hand = pg.transform.rotate(self.hand, -degree)  # минусовой градус для правильного оффсета
+        rotated_hand = pg.transform.rotate(self.hand, degree)  # минусовой градус для правильного оффсета
         if (degree > 165) and (degree < 195):
             rotated_hand = pg.transform.flip(rotated_hand, False, True)
 
         # на сколько рука удалена от центра шашки
-        offset = pg.math.Vector2(checker.diameter * 1.9, 0).rotate(degree)
+        offset = pg.math.Vector2(checker.diameter * 1.9, 0).rotate(-degree)
         pos = rotated_hand.get_rect(center=checker.center + offset)
 
         return rotated_hand, pos
