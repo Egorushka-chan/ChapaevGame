@@ -153,7 +153,7 @@ class Board:
         self.dir_path = dir_path
         self.parent_surface = parent_surface
         self.size = self.width, self.height = board_size
-        self.compute_table = None
+        self.compute_table : ComputeTable = None
 
         self.markup = []
         self.borders_size = 15
@@ -231,6 +231,18 @@ class Board:
 
             if self.force_choicer.visible:
                 self.force_choicer.draw(time_delta)
+        else:
+            result, status = self.compute_table.evolve(time_delta)
+            for result_checker in result:
+                for element_checker in self.checkers:
+                    if result_checker.id == element_checker.id:
+                        element_checker.center = result_checker.pos
+
+            for checker in self.checkers:
+                checker.draw(time_delta)
+            if not status:
+                self.compute_table = None
+
 
     def hand_to_checker(self, checker):
         ch_center = checker.center
@@ -322,17 +334,20 @@ class Board:
                 self.punch(force, self.punch_coordinates, id)
 
     def punch(self, force : float, punch_coordinates: [int,int], id):
-        punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1] * -1
+        punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1]
         print(f'Совершен удар по {id}: сила = {force}; направление = {punch_coordinates}')
         self.compute_table = ComputeTable(self.size)
         for checker in self.checkers:
-            id = checker.id
+            id_cheker = checker.id
             radius = checker.radius
             mass = checker.mass
             pos = checker.center
-            velocity = punch_coordinates[0] * (force/mass), punch_coordinates[1] * (force/mass)
-            self.compute_table.add_ball(id, radius, mass, pos, velocity)
-        self.compute_table.compute()
+            if id == id_cheker:
+                velocity = punch_coordinates[0] * (force/mass), punch_coordinates[1] * (force/mass)
+            else:
+                velocity = [0,0]
+            self.compute_table.add_ball(id_cheker, radius, mass, pos, velocity)
+
 
 
 

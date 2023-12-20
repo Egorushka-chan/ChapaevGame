@@ -49,19 +49,59 @@ class ComputeTable:
         ball = ComputeBall(id, radius, mass, pos, velocity)
         self.balls.append(ball)
 
+    def evolve(self, dt):
+        movable_balls = []
+        for ball in self.balls:
+            if (ball.velocity[0] != 0) or (ball.velocity[1] != 0):
+                movable_balls.append(ball)
+        collisions = []
+        for mv_b in movable_balls:
+            for ball in self.balls:
+                if mv_b != ball:
+                    imp_time = self.time_of_impact(mv_b, ball)
+                    if imp_time != INF:
+                        if (imp_time, ball, mv_b) not in collisions:
+                            collisions.append((imp_time, mv_b, ball))
+        if len(collisions) > 0:
+            min_time = INF
+            for collision in collisions:
+                imp_time, mv_b, ball = collision
+                min_time = min(min_time, imp_time)
+            if min_time < dt:
+                for collision in collisions:
+                    imp_time, mv_b, ball = collision
+                    if min_time == imp_time:
+                        new_vels = self.elastic_collision(mv_b, ball)
+                        self.move(mv_b, imp_time)
+                        self.move(ball, imp_time)
+                        mv_b.velocity, ball.velocity = new_vels
+
+        for ball in self.balls:
+            self.move(ball, dt)
+
+        movable_balls.clear()
+        movable_balls = []
+        for ball in self.balls:
+            if (ball.velocity[0] != 0) or (ball.velocity[1] != 0):
+                movable_balls.append(ball)
+        status = True
+        if len(movable_balls) == 0:
+            status = False
+        return self.balls, status
+
+
     def compute(self):
         result = self.recur(self.balls.copy())
-        print(result)
+        return result
 
     def recur(self, balls, dt=0, total_time=0):
         if dt:
             for ball in balls:
-                new_pos = self.move(ball, dt)
-                ball.pos = new_pos
+                self.move(ball, dt)
 
         movable_balls = []
         for ball in balls:
-            if (ball.velocity[0] > 0) or (ball.velocity[1] > 0):
+            if (ball.velocity[0] != 0) or (ball.velocity[1] != 0):
                 movable_balls.append(ball)
 
         collisions = []
@@ -69,17 +109,23 @@ class ComputeTable:
             for ball in balls:
                 if mv_b != ball:
                     imp_time = self.time_of_impact(mv_b, ball)
-                    self.collisions.append((imp_time, mv_b, ball))
+                    if imp_time != INF:
+                        if (imp_time, ball,mv_b) not in collisions:
+                            collisions.append((imp_time, mv_b, ball))
         if len(collisions) > 0:
-            min_time = 0
-            for collision in self.collisions:
+            min_time = INF
+            for collision in collisions:
                 imp_time, mv_b, ball = collision
                 min_time = min(min_time, imp_time)
-                self.move(mv_b, imp_time)
-                self.move(ball, imp_time)
-                mv_b.velocity, ball.velocity = self.elastic_collision(mv_b, ball)
-                total_time += min_time
-                dt = total_time - min_time
+            for collision in collisions:
+                imp_time, mv_b, ball = collision
+                if min_time == imp_time:
+                    new_vels = self.elastic_collision(mv_b, ball)
+                    self.move(mv_b, imp_time)
+                    self.move(ball, imp_time)
+                    mv_b.velocity, ball.velocity = new_vels
+                    total_time += min_time
+                    dt = min_time
         else:
             max_time = 0
             for ball in balls:
@@ -89,17 +135,25 @@ class ComputeTable:
                 total_time = total_time + max_time
                 return balls, total_time
 
-        return self.recur(balls.copy(), dt)
+        return self.recur(balls.copy(), dt, total_time)
 
     def move(self, ball: ComputeBall, dt):
-        new_pos = [0,0]
-        new_pos[0] = ball.pos[0] + ball.velocity[0]*dt + (deceleration(ball.mass)*(dt**2))/2
-        new_pos[1] = ball.pos[1] + ball.velocity[1] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
-
-        new_velocity = [0, 0]
-        if ball.velocity[0] + ball.velocity[1] > deceleration(ball.mass):
-            new_velocity[0] = ball.velocity[0] - deceleration(ball.mass) * dt
-            new_velocity[1] = ball.velocity[1] - deceleration(ball.mass) * dt
+        new_pos = [ball.pos[0], ball.pos[1]]
+        new_velocity = [0,0]
+        if abs(ball.velocity[0])> deceleration(ball.mass):
+            new_pos[0] = ball.pos[0] + ball.velocity[0] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
+        if abs(ball.velocity[1]) > deceleration(ball.mass):
+            new_pos[1] = ball.pos[1] + ball.velocity[1] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
+        if abs(ball.velocity[0]) > deceleration(ball.mass):
+            if ball.velocity[0] < 0:
+                new_velocity[0] = ball.velocity[0] + deceleration(ball.mass) * dt
+            else:
+                new_velocity[0] = ball.velocity[0] - deceleration(ball.mass) * dt
+        if abs(ball.velocity[1]) > deceleration(ball.mass):
+            if ball.velocity[1] < 0:
+                new_velocity[1] = ball.velocity[1] + deceleration(ball.mass) * dt
+            else:
+                new_velocity[1] = ball.velocity[1] - deceleration(ball.mass) * dt
         ball.velocity = new_velocity
         ball.pos = new_pos
 
@@ -108,13 +162,13 @@ class ComputeTable:
         vel_diff = np.subtract(second_ball.velocity, first_ball.velocity)
 
         pos_dot_vel = pos_diff.dot(vel_diff)
-        assert pos_dot_vel < 0  # colliding balls do not move apart
+        assert pos_dot_vel < 0
 
         dist_sqrd = pos_diff.dot(pos_diff)
 
         bla = 2 * (pos_dot_vel * pos_diff) / ((first_ball.mass + second_ball.mass) * dist_sqrd)
-        vel1 = first_ball.velocity + second_ball.mass * bla
-        vel2 = second_ball.velocity - first_ball.mass * bla
+        vel1 = first_ball.velocity + (second_ball.mass * bla) / 1.5
+        vel2 = second_ball.velocity - (first_ball.mass * bla) / 1.5
         return vel1, vel2
 
     def time_of_impact(self, first_ball: ComputeBall, second_ball: ComputeBall):
@@ -145,9 +199,21 @@ class ComputeTable:
 
 if __name__ == '__main__':
     comp = ComputeTable((1000, 1000))
-    comp.add_ball(1, 10, 0.100, (100, 100), (100, 100))
-    comp.add_ball(2, 10, 0.100, (200, 200), (-100, 0))
-    comp.add_ball(3, 10, 0.100, (10, 10), (0, 0))
-    comp.add_ball(4, 10, 0.100, (300, 300), (0, 0))
-    comp.add_ball(5, 10, 0.100, (500, 500), (0, 0))
-    comp.compute()
+    comp.add_ball(1, 25, 0.100, (102, 102), (90.07, -1.92))
+    comp.add_ball(2, 25, 0.100, (167, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (232, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (297, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (362, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (427, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (492, 102), (0, 0))
+    comp.add_ball(2, 25, 0.100, (557, 102), (0, 0))
+    comp.add_ball(1, 25, 0.100, (102, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (167, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (232, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (297, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (362, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (427, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (492, 557), (0, 0))
+    comp.add_ball(2, 25, 0.100, (557, 557), (0, 0))
+    res = comp.compute()
+    print(res)
