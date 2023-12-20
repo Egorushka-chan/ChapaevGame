@@ -39,7 +39,7 @@ class ComputeBall:
 
 class ComputeTable:
     def __init__(self, size):
-        self.size = size
+        self.size = size[0]
         self.balls: list[ComputeBall] = []
         self.end_time = 0
         self.end_positions: list[ComputeBall] = []
@@ -78,6 +78,13 @@ class ComputeTable:
 
         for ball in self.balls:
             self.move(ball, dt)
+
+        # out_of_range_balls = []
+        # for ball in self.balls:
+        #     if (ball.pos[0] < 0) or (ball.pos[0] < 0) or (ball.pos[0] > self.size[0]) or (ball.pos[1] > self.size[1]):
+        #         out_of_range_balls.append(ball)
+        # for ball in out_of_range_balls:
+        #     self.balls.remove(ball)
 
         movable_balls.clear()
         movable_balls = []

@@ -73,6 +73,8 @@ class Checker:
             shine_pos = self.rectangle[0] - self.shine_range, self.rectangle[1] - self.shine_range
             self.parent_surface.blit(self.shine, shine_pos)
 
+        self.rectangle = (self.center[0] - self.radius, self.center[1] - self.radius,
+                          self.radius * 2, self.radius * 2)
         self.parent_surface.blit(self.image, (self.rectangle[0], self.rectangle[1]))
 
 
