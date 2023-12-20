@@ -4,6 +4,8 @@ from enum import Enum
 
 import pygame as pg
 
+from Modules.Compute import ComputeTable
+
 MAX_FORCE = 10.0
 
 
@@ -34,11 +36,12 @@ class Color(Enum):
 
 
 class Checker:
-    def __init__(self, parent_surface, center: (int | float, int | float), mass, diameter, side: Color, dir_path):
+    def __init__(self, parent_surface, center: (int | float, int | float), mass, radius, side: Color, dir_path, id):
+        self.id = id
         self.dir_path = dir_path
         self.center = center
         self.side: Color = side
-        self.diameter = diameter
+        self.radius = radius
         self.mass = mass
         self.parent_surface = parent_surface
 
@@ -47,7 +50,7 @@ class Checker:
         self.shine = pg.image.load(os.path.join(self.dir_path, 'Assets/Images/shine.png')).convert_alpha()
         self.shine_range = 10
         self.shine = pg.transform.scale(self.shine, (
-            (self.diameter + self.shine_range) * 2, (self.diameter + self.shine_range) * 2))
+            (self.radius + self.shine_range) * 2, (self.radius + self.shine_range) * 2))
 
         # цвет обводки и спрайт шашки
         self.fill = ''
@@ -58,14 +61,14 @@ class Checker:
             self.fill = "Black"
             image_path = os.path.join(self.dir_path, 'Assets/Images/black_checker.png ')
         self.image = pg.image.load(image_path).convert_alpha()
-        self.image = pg.transform.scale(self.image, (self.diameter * 2, self.diameter * 2))
+        self.image = pg.transform.scale(self.image, (self.radius * 2, self.radius * 2))
 
         # координаты шашки в pygame
-        self.rectangle = (self.center[0] - self.diameter, self.center[1] - self.diameter,
-                          self.diameter * 2, self.diameter * 2)
+        self.rectangle = (self.center[0] - self.radius, self.center[1] - self.radius,
+                          self.radius * 2, self.radius * 2)
 
     def draw(self, time_delta):
-        pg.draw.circle(self.parent_surface, self.fill, self.center, self.diameter, 0)
+        pg.draw.circle(self.parent_surface, self.fill, self.center, self.radius, 0)
         if self.selected:
             shine_pos = self.rectangle[0] - self.shine_range, self.rectangle[1] - self.shine_range
             self.parent_surface.blit(self.shine, shine_pos)
@@ -149,7 +152,8 @@ class Board:
         self.indentations = indentations
         self.dir_path = dir_path
         self.parent_surface = parent_surface
-        self.width, self.height = board_size
+        self.size = self.width, self.height = board_size
+        self.compute_table = None
 
         self.markup = []
         self.borders_size = 15
@@ -217,15 +221,16 @@ class Board:
     def draw(self, time_delta):
         for element in self.markup:
             self.parent_surface.blit(*element)
-        for checker in self.checkers:
-            checker.draw(time_delta)
+        if not self.compute_table:
+            for checker in self.checkers:
+                checker.draw(time_delta)
 
-        if self.point_angle:
-            hand, pos = self.hand_to_checker(self.selected_checker)
-            self.parent_surface.blit(hand, pos)
+            if self.point_angle:
+                hand, pos = self.hand_to_checker(self.selected_checker)
+                self.parent_surface.blit(hand, pos)
 
-        if self.force_choicer.visible:
-            self.force_choicer.draw(time_delta)
+            if self.force_choicer.visible:
+                self.force_choicer.draw(time_delta)
 
     def hand_to_checker(self, checker):
         ch_center = checker.center
@@ -236,7 +241,7 @@ class Board:
             rotated_hand = pg.transform.flip(rotated_hand, False, True)
 
         # на сколько рука удалена от центра шашки
-        offset = pg.math.Vector2(checker.diameter * 1.9, 0).rotate(-degree)
+        offset = pg.math.Vector2(checker.radius * 1.9, 0).rotate(-degree)
         pos = rotated_hand.get_rect(center=checker.center + offset)
 
         return rotated_hand, pos
@@ -245,6 +250,7 @@ class Board:
         if len(self.checkers) != 0:
             self.checkers.clear()
 
+        id = 0
         for x in range(self.rang + 1):
             for cell in self.cells:
                 if cell[0] == x:
@@ -254,44 +260,47 @@ class Board:
                                  self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.black_line - 1)
-                        new = Checker(self.parent_surface, center, 1, 25, Color.Black, self.dir_path)
+                        new = Checker(self.parent_surface, center, 0.100, 25, Color.Black, self.dir_path, id)
                         self.checkers.append(new)
+                        id +=1
                     elif cell[1] == self.white_line:
                         center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), \
                                  self.indentations[1] + self.borders_size + \
                                  center_tur[1] + \
                                  self.cell_size[1] * (self.white_line - 1)
-                        new = Checker(self.parent_surface, center, 1, 25, Color.White, self.dir_path)
+                        new = Checker(self.parent_surface, center, 0.100, 25, Color.White, self.dir_path, id)
                         self.checkers.append(new)
+                        id += 1
 
     def process_click(self, pos: (int, int)):
-        for checker in self.checkers:
-            collision = pg.Rect(*checker.rectangle).collidepoint(pos)
-            if collision:
-                # Алгоритм: Выясняем, попало ли значение в круг
+        if self.compute_table is None:
+            for checker in self.checkers:
+                collision = pg.Rect(*checker.rectangle).collidepoint(pos)
+                if collision:
+                    # Алгоритм: Выясняем, попало ли значение в круг
 
-                # Находим абсолютные значения координаты точки относительно центра
-                tested_point = abs(pos[0] - checker.center[0]), abs(pos[1] - checker.center[1])
-                # Используем теорему Пифагора
-                distance = math.sqrt(math.pow(tested_point[0], 2) + math.pow(tested_point[1], 2))
-                # Если расстояние меньше диаметра, то шашка нажата
-                if distance <= checker.diameter:
-                    if not self.force_choicer.visible:
-                        if checker.selected:
-                            checker.selected = False
-                            self.selected_checker = None
-                        else:
-                            if self.selected_checker:
-                                self.selected_checker.selected = False
-                            if self.block_side != checker.side:
-                                checker.selected = True
-                                self.selected_checker = checker
-                        # убираем руку при изменении выбранной шашки
-                        self.point_angle = None
-                        # return чтобы не проходил elif дальше по коду
-                        return
-            elif self.selected_checker:
-                self.point_angle = pos
+                    # Находим абсолютные значения координаты точки относительно центра
+                    tested_point = abs(pos[0] - checker.center[0]), abs(pos[1] - checker.center[1])
+                    # Используем теорему Пифагора
+                    distance = math.sqrt(math.pow(tested_point[0], 2) + math.pow(tested_point[1], 2))
+                    # Если расстояние меньше диаметра, то шашка нажата
+                    if distance <= checker.radius:
+                        if not self.force_choicer.visible:
+                            if checker.selected:
+                                checker.selected = False
+                                self.selected_checker = None
+                            else:
+                                if self.selected_checker:
+                                    self.selected_checker.selected = False
+                                if self.block_side != checker.side:
+                                    checker.selected = True
+                                    self.selected_checker = checker
+                            # убираем руку при изменении выбранной шашки
+                            self.point_angle = None
+                            # return чтобы не проходил elif дальше по коду
+                            return
+                elif self.selected_checker:
+                    self.point_angle = pos
 
     def process_handling(self, pos, button_type):
         if self.point_angle:
@@ -307,13 +316,23 @@ class Board:
                 self.force_choicer.hide()
                 self.point_angle = None
                 force = self.force_choicer.get()
+                id = self.selected_checker.id
                 self.selected_checker.selected = False
                 self.selected_checker = None
-                self.punch(force, self.punch_coordinates)
+                self.punch(force, self.punch_coordinates, id)
 
-    def punch(self, force : float, punch_coordinates: [int,int]):
+    def punch(self, force : float, punch_coordinates: [int,int], id):
         punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1] * -1
-        print(f'Совершен удар: сила = {force}; направление = {punch_coordinates}')
+        print(f'Совершен удар по {id}: сила = {force}; направление = {punch_coordinates}')
+        self.compute_table = ComputeTable(self.size)
+        for checker in self.checkers:
+            id = checker.id
+            radius = checker.radius
+            mass = checker.mass
+            pos = checker.center
+            velocity = punch_coordinates[0] * (force/mass), punch_coordinates[1] * (force/mass)
+            self.compute_table.add_ball(id, radius, mass, pos, velocity)
+        self.compute_table.compute()
 
 
 
