@@ -152,9 +152,9 @@ class ComputeTable:
                     self.move(ball, test_time)
                 max_time = max(max_time, test_time)
                 total_time = total_time + max_time
-                return balls, total_time
+            return balls, total_time
 
-        return self.recur(balls.copy(), total_time)
+        return self.recur(balls.copy(), dt, total_time)
 
     def move(self, ball: ComputeBall, dt):
         new_pos = [ball.pos[0], ball.pos[1]]
@@ -163,53 +163,75 @@ class ComputeTable:
         total_vel = abs(ball.velocity[0]) + abs(ball.velocity[1])
         vel1_scale = abs(ball.velocity[0]) / total_vel
         vel2_scale = abs(ball.velocity[1]) / total_vel
+        
+        decel = deceleration(ball.mass)
 
         total_vector_velocity = math.sqrt(abs(ball.velocity[0]) ** 2 + abs(ball.velocity[1]) ** 2)
         # total_path = math.sqrt(abs(ball.velocity[0] * dt) ** 2 + abs(ball.velocity[1] * dt) ** 2)
         # total_path_friction = deceleration(ball.mass) * dt
 
-        if total_vector_velocity > deceleration(ball.mass):
+        if total_vector_velocity > decel:
             stop_time = ball.calc_stop_time()
             if stop_time < dt:
                 dt = stop_time
-            new_pos[0] = ball.pos[0] + ball.velocity[0] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
-            new_pos[1] = ball.pos[1] + ball.velocity[1] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
-            new_velocity[0] = ball.velocity[0] - deceleration(ball.mass) * dt * sign(ball.velocity[0]) * vel1_scale
+            sign_0 = sign(ball.velocity[0])
+            sign_1 = sign(ball.velocity[1])
+
+            if ball.velocity[0] != 0:
+                new_pos[0] = ball.pos[0] + ball.velocity[0] * dt - (decel * (dt ** 2)) / 2
+                if sign_0 != sign(new_pos[0]):
+                    new_pos[0] = ball.pos[0]
+            if ball.velocity[1] != 0:
+                new_pos[1] = ball.pos[1] + ball.velocity[1] * dt - (decel * (dt ** 2)) / 2
+                if sign_1 != sign(new_pos[1]):
+                    new_pos[1] = ball.pos[1]
+
+            if ball.velocity[0] == 0:
+                assert new_pos[0] == ball.pos[0], 'Шашка переместилась без скорости по 0'
+            if ball.velocity[1] == 0:
+                assert new_pos[1] == ball.pos[1], 'Шашка переместилась без скорости по 1'
+
+            new_velocity[0] = ball.velocity[0] - decel * dt * sign_0  * vel1_scale
             if abs(new_velocity[0]) > abs(ball.velocity[0]):
-                assert new_velocity[0], f'Шашка {ball} ускорилась при движении по 0'
-                # print(f'Шашка {ball.id} ускорилась по 0 с {abs(ball.velocity[0])} до {abs(new_velocity[0])}')
-                # print(f'vel_scale: 1={vel1_scale} 2={vel2_scale}')
-                # print(f'dt: {dt}')
-                # print(f'sign: {sign(ball.velocity[0])}')
-            new_velocity[1] = ball.velocity[1] - deceleration(ball.mass) * dt * sign(ball.velocity[1]) * vel2_scale
+                assert abs(new_velocity[0]) > abs(ball.velocity[0]), (f'Шашка {ball.id} ускорилась при движении по 0, '
+                                                                      f'стр_скр: {ball.velocity[0]}, '
+                                                                      f'нов_вел: {new_velocity[0]}, '
+                                                                      f'зам= {decel}, '
+                                                                      f'dt= {dt}, '
+                                                                      f'sign={sign_0}, '
+                                                                      f'vel1_scale={vel1_scale}')
+
+            new_velocity[1] = ball.velocity[1] - decel * dt * sign_1 * vel2_scale
             if abs(new_velocity[1]) > abs(ball.velocity[1]):
-                assert new_velocity[0], f'Шашка {ball} ускорилась при движении по 1'
-                # print(f'Шашка {ball.id} ускорилась по 1 с {abs(ball.velocity[1])} до {abs(new_velocity[1])}')
-                # print(f'vel_scale: 1={vel1_scale} 2={vel2_scale}')
-                # print(f'dt: {dt}')
-                # print(f'sign: {sign(ball.velocity[1])}')
+                assert abs(new_velocity[1]) > abs(ball.velocity[1]), (f'Шашка {ball.id} ускорилась при движении по 1, '
+                                                                      f'стр_скр: {ball.velocity[1]}, '
+                                                                      f'нов_скр: {new_velocity[1]}, '
+                                                                      f'зам= {decel}, '
+                                                                      f'dt= {dt}, '
+                                                                      f'sign={sign_1}, '
+                                                                      f'vel1_scale={vel2_scale}')
 
         # версия движения 1.0
-        # if abs(ball.velocity[0]) > deceleration(ball.mass):
-        #     new_pos[0] = ball.pos[0] + ball.velocity[0] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
-        # if abs(ball.velocity[1]) > deceleration(ball.mass):
-        #     new_pos[1] = ball.pos[1] + ball.velocity[1] * dt + (deceleration(ball.mass) * (dt ** 2)) / 2
-        # if abs(ball.velocity[0]) > deceleration(ball.mass):
+        # if abs(ball.velocity[0]) > decel:
+        #     new_pos[0] = ball.pos[0] + ball.velocity[0] * dt + (decel * (dt ** 2)) / 2
+        # if abs(ball.velocity[1]) > decel:
+        #     new_pos[1] = ball.pos[1] + ball.velocity[1] * dt + (decel * (dt ** 2)) / 2
+        # if abs(ball.velocity[0]) > decel:
         #     if ball.velocity[0] < 0:
-        #         new_velocity[0] = ball.velocity[0] + deceleration(ball.mass) * dt
+        #         new_velocity[0] = ball.velocity[0] + decel * dt
         #     else:
-        #         new_velocity[0] = ball.velocity[0] - deceleration(ball.mass) * dt
-        # if abs(ball.velocity[1]) > deceleration(ball.mass):
+        #         new_velocity[0] = ball.velocity[0] - decel * dt
+        # if abs(ball.velocity[1]) > decel:
         #     if ball.velocity[1] < 0:
-        #         new_velocity[1] = ball.velocity[1] + deceleration(ball.mass) * dt
+        #         new_velocity[1] = ball.velocity[1] + decel * dt
         #     else:
-        #         new_velocity[1] = ball.velocity[1] - deceleration(ball.mass) * dt
+        #         new_velocity[1] = ball.velocity[1] - decel * dt
         ball.velocity = new_velocity
         ball.pos = new_pos
 
         for ball in self.balls:
-            if (ball.pos[0] < self.topleft[0]) or (ball.pos[1] < self.topleft[1]) or (ball.pos[0] > 605) or (
-                    ball.pos[1] > 605):
+            if (ball.pos[0] < self.topleft[0]) or (ball.pos[1] < self.topleft[1]) or (ball.pos[0] > self.bottomright[0]-self.topleft[0]) or (
+                    ball.pos[1] > self.bottomright[1]-self.topleft[1]):
                 self.kicked_balls.append(ball)
             for ball in self.kicked_balls:
                 if ball in self.balls:
@@ -257,39 +279,54 @@ class ComputeTable:
 
 if __name__ == '__main__':
     # тестирование работы двух методов: априорного и апостериорного:
-    comp = ComputeTable(topleft=(55,55), bottomright = (715, 715))
-    comp.add_ball(0, 25, 0.100, (102, 102), (2, 90))
-    comp.add_ball(1, 25, 0.100, (167, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (232, 102), (0, 0))
-    comp.add_ball(3, 25, 0.100, (297, 102), (0, 0))
-    comp.add_ball(4, 25, 0.100, (362, 102), (0, 0))
-    comp.add_ball(5, 25, 0.100, (427, 102), (0, 0))
-    comp.add_ball(6, 25, 0.100, (492, 102), (0, 0))
-    comp.add_ball(7, 25, 0.100, (557, 102), (0, 0))
-    comp.add_ball(8, 25, 0.100, (102, 557), (0, 0))
-    comp.add_ball(9, 25, 0.100, (167, 557), (0, 0))
-    comp.add_ball(10, 25, 0.100, (232, 557), (0, 0))
-    comp.add_ball(11, 25, 0.100, (297, 557), (0, 0))
-    comp.add_ball(12, 25, 0.100, (362, 557), (0, 0))
-    comp.add_ball(13, 25, 0.100, (427, 557), (0, 0))
-    comp.add_ball(14, 25, 0.100, (492, 557), (0, 0))
-    comp.add_ball(15, 25, 0.100, (557, 557), (0, 0))
+    comp_evl = ComputeTable(topleft=(55, 55), bottomright=(715, 715))
+    comp_evl.add_ball(0, 25, 0.100, (102, 102), (0, 0))
+    comp_evl.add_ball(1, 25, 0.100, (167, 102), (0, 0))
+    comp_evl.add_ball(2, 25, 0.100, (232, 102), (0, 0))
+    comp_evl.add_ball(3, 25, 0.100, (297, 102), (0, 0))
+    comp_evl.add_ball(4, 25, 0.100, (362, 102), (0, 0))
+    comp_evl.add_ball(5, 25, 0.100, (427, 102), (0, 0))
+    comp_evl.add_ball(6, 25, 0.100, (492, 102), (0, 0))
+    comp_evl.add_ball(7, 25, 0.100, (557, 102), (0, 0))
+    comp_evl.add_ball(8, 25, 0.100, (102, 557), (0, 0))
+    comp_evl.add_ball(9, 25, 0.100, (167, 557), (0, 0))
+    comp_evl.add_ball(10, 25, 0.100, (232, 557), (0, 0))
+    comp_evl.add_ball(11, 25, 0.100, (297, 557), (0, -20))
+    comp_evl.add_ball(12, 25, 0.100, (362, 557), (0, 0))
+    comp_evl.add_ball(13, 25, 0.100, (427, 557), (0, 0))
+    comp_evl.add_ball(14, 25, 0.100, (492, 557), (0, 0))
+    comp_evl.add_ball(15, 25, 0.100, (557, 557), (0, 0))
+
     status = True
-    last_time = datetime.now()
-    time_delta = 0
-    total_seconds = 0
-    result = ''
+    time_delta = 0.01
+    evolve_result = ''
     while status:
-        result, status = comp.evolve(time_delta)
-        now = datetime.now()
-        time_delta = now - last_time
-        time_delta = time_delta.total_seconds()
-        total_seconds += time_delta
-    res = comp.compute()
-    for evl in result:
+        evolve_result, status = comp_evl.evolve(time_delta)
+
+    comp_compute = ComputeTable(topleft=(55, 55), bottomright=(715, 715))
+    comp_compute.add_ball(0, 25, 0.100, (102, 102), (0, 0))
+    comp_compute.add_ball(1, 25, 0.100, (167, 102), (0, 0))
+    comp_compute.add_ball(2, 25, 0.100, (232, 102), (0, 0))
+    comp_compute.add_ball(3, 25, 0.100, (297, 102), (0, 0))
+    comp_compute.add_ball(4, 25, 0.100, (362, 102), (0, 0))
+    comp_compute.add_ball(5, 25, 0.100, (427, 102), (0, 0))
+    comp_compute.add_ball(6, 25, 0.100, (492, 102), (0, 0))
+    comp_compute.add_ball(7, 25, 0.100, (557, 102), (0, 0))
+    comp_compute.add_ball(8, 25, 0.100, (102, 557), (0, 0))
+    comp_compute.add_ball(9, 25, 0.100, (167, 557), (0, 0))
+    comp_compute.add_ball(10, 25, 0.100, (232, 557), (0, 0))
+    comp_compute.add_ball(11, 25, 0.100, (297, 557), (0, -20))
+    comp_compute.add_ball(12, 25, 0.100, (362, 557), (0, 0))
+    comp_compute.add_ball(13, 25, 0.100, (427, 557), (0, 0))
+    comp_compute.add_ball(14, 25, 0.100, (492, 557), (0, 0))
+    comp_compute.add_ball(15, 25, 0.100, (557, 557), (0, 0))
+    res = comp_compute.compute()
+    for evl in evolve_result:
         for cmp in res[0]:
             if evl.id == cmp.id:
                 if evl.pos != cmp.pos:
-                    print(f'У шашки {evl.id} не соответствует позиция: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
+                    print(
+                        f'У шашки {evl.id} не соответствует позиция: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
                 else:
-                    print(f'Соответствие шашки {evl.id}: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
+                    print(
+                        f'Соответствие шашки {evl.id}: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
