@@ -200,7 +200,7 @@ class Board:
         self.black_line = 1
         self.white_line = rang
         self.round = 1
-        self.current_step : Color = Color.White
+        self.current_step: Color = Color.White
         self.removed_opposite = False
 
         # код для хранения шашек
@@ -222,9 +222,9 @@ class Board:
         self.white_line = self.rang
         self.fill_checkers()
 
-    def continue_game(self, victory_side:Color):
+    def continue_game(self, victory_side: Color):
         if victory_side == Color.White:
-            self.white_line -=1
+            self.white_line -= 1
             if self.white_line <= self.black_line:
                 self.black_line = self.white_line - 1
             self.current_step = Color.White
@@ -237,7 +237,7 @@ class Board:
             if self.black_line != 1:
                 self.black_line -= 1
             if self.white_line != self.rang:
-                self.white_line +=1
+                self.white_line += 1
             self.current_step = Color.White
         self.fill_checkers()
 
@@ -263,7 +263,6 @@ class Board:
                         element_checker.center = result_checker.pos
                         non_appeared_checkers.remove(element_checker)
 
-
             for checker in non_appeared_checkers:
                 if self.current_step != checker.side:
                     self.removed_opposite = True
@@ -274,13 +273,12 @@ class Board:
             if not status:
                 self.compute_table = None
                 if self.removed_opposite:
-                    self.removed_opposite = True
+                    self.removed_opposite = False
                 else:
                     if self.current_step == Color.White:
                         self.current_step = Color.Black
                     else:
                         self.current_step = Color.White
-
 
     def hand_to_checker(self, checker):
         ch_center = checker.center
@@ -397,7 +395,6 @@ class Board:
             if checker.side == Color.Black:
                 is_blacks = True
 
-
         if is_whites and not is_blacks:
             self.continue_game(Color.White)
             return f'Победа белых в раунде {self.round}'
@@ -432,7 +429,6 @@ if __name__ == '__main__':
         display.blit(game_surface, indentations)
         game_surface.fill('#DECAFF')
         board.draw(dt)
-
 
         for event in pg.event.get():
             if event.type == pg.QUIT:

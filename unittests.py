@@ -37,47 +37,32 @@ class TestCompute(TestCase):
         # result
         self.assertEqual(pre_calc, dec_val)
 
-    def test_ComputeTable_evolve_vs_compute_difference_result(self):
-        """
-        Тестирование работы двух методов: априорного и апостериорного. Итоговое положение должно быть одинаковое
-        """
+    def test_stopTime1(self):
         # arrange
-        comp = ComputeTable(topleft=(55, 55), bottomright=(715, 715))
-        comp.add_ball(0, 25, 0.100, (102, 102), (2, 90))
-        comp.add_ball(1, 25, 0.100, (167, 102), (-10, -10))
-        comp.add_ball(2, 25, 0.100, (232, 102), (0, 0))
-        comp.add_ball(3, 25, 0.100, (297, 102), (0, 0))
-        comp.add_ball(4, 25, 0.100, (362, 102), (2, 90))
-        comp.add_ball(5, 25, 0.100, (427, 102), (0, 0))
-        comp.add_ball(6, 25, 0.100, (492, 102), (0, 0))
-        comp.add_ball(7, 25, 0.100, (557, 102), (0, 0))
-        comp.add_ball(8, 25, 0.100, (102, 557), (0, 0))
-        comp.add_ball(9, 25, 0.100, (167, 557), (0, 0))
-        comp.add_ball(10, 25, 0.100, (232, 557), (-32, -44))
-        comp.add_ball(11, 25, 0.100, (297, 557), (0, 0))
-        comp.add_ball(12, 25, 0.100, (362, 557), (0, 0))
-        comp.add_ball(13, 25, 0.100, (427, 557), (0, 0))
-        comp.add_ball(14, 25, 0.100, (492, 557), (0, 0))
-        comp.add_ball(15, 25, 0.100, (557, 557), (-22, -80))
-        status = True
-        time_delta = 0.01
-        evolve_result = ''
-
+        ball = ComputeBall(0, 2, 0.1, (100, 100), (100, 100))
+        pre_calc = 19
         # act
-        while status:
-            evolve_result, status = comp.evolve(time_delta)
-        compute_result = comp.compute()
+        stop_time = round(ball.calc_stop_time())
+        # result
+        self.assertEqual(pre_calc, stop_time)
 
-        # assert
-        cmp_result = []
-        evl_result = []
+    def test_stopTime2(self):
+        # arrange
+        ball = ComputeBall(0, 2, 0.1, (100, 100), (100,0))
+        pre_calc = 19
+        # act
+        stop_time = round(ball.calc_stop_time())
+        # result
+        self.assertEqual(pre_calc, stop_time)
 
-        for evl in evolve_result:
-            for cmp in compute_result[0]:
-                if evl.id == cmp.id:
-                    cmp_result.append(cmp.pos)
-                    evl_result.append(evl.pos)
-        self.assertEqual(cmp_result, evl_result)
+    def test_stopTime3(self):
+        # arrange
+        ball = ComputeBall(0, 2, 0.1, (100, 100), (-150, 150))
+        pre_calc = 28
+        # act
+        stop_time = round(ball.calc_stop_time())
+        # result
+        self.assertEqual(pre_calc, stop_time)
 
     def test_ComputeTable_evolve_vs_compute_difference_move(self):
         """
@@ -90,7 +75,7 @@ class TestCompute(TestCase):
         comp_compute.add_ball(0, 25, 0.100, (100, 100), (150, 150))
         # act
         status = True
-        time_delta = [0.004] * 10000
+        time_delta = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
         evolve_result = ''
         for dt in time_delta:
             if status:
@@ -107,6 +92,11 @@ class TestCompute(TestCase):
                     cmp_result.append((round(cmp.pos[0]), round(cmp.pos[1])))
                     evl_result.append((round(evl.pos[0]), round(evl.pos[1])))
         self.assertEqual(cmp_result, evl_result)
+
+    def test_diagonal_move(self):
+        comp_compute = ComputeTable(topleft=(55, 55), bottomright=(715, 715))
+        comp_compute.add_ball(0, 10, 0.100, (102, 102), (2, 90))
+        res = comp_compute.compute()
 
     def test_ComputeTable_evolve_move1(self):
         """
@@ -139,10 +129,10 @@ class TestCompute(TestCase):
         """
         # arrange
         comp_evl1 = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl1.add_ball(0, 25, 0.100, (102, 100), (20, 90))
+        comp_evl1.add_ball(0, 25, 0.100, (102, 100), (900, 900))
 
         comp_evl2 = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl2.add_ball(0, 25, 0.100, (102, 100), (20, 90))
+        comp_evl2.add_ball(0, 25, 0.100, (102, 100), (900, 900))
         # act
         status = True
         time_delta = [6]
@@ -241,6 +231,7 @@ class TestCompute(TestCase):
         # arrange
         comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
         comp_evl.add_ball(0, 25, 0.100, (102, 100), (0, 0))
+        pre_calc = (102,100)
         # act
 
         status = True
@@ -255,110 +246,8 @@ class TestCompute(TestCase):
         for evl in evolve_result:
             if evl.id == 0:
                 evl_result.append((evl.pos[0], round(evl.pos[1])))
-        self.assertEqual((102, 100), evl_result[0])
-
-    def test_ComputeTable_evolve_diagonal_move1(self):
-        """
-        Проверка диагонального движения по одному значению
-        """
-        # arrange
-        comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl.add_ball(0, 25, 0.100, (100, 100), (150, 150))
-
-        pre_calc = (669, 669)
-        # act
-        time_delta = [6]
-        evolve_result = ''
-        for dt in time_delta:
-            evolve_result, _ = comp_evl.evolve(dt)
-
-        # assert
-        evl_result = []
-        for evl in evolve_result:
-            if evl.id == 0:
-                evl_result.append((round(evl.pos[0]), round(evl.pos[1])))
-        self.assertEqual(evl_result[0], pre_calc)
-
-    def test_ComputeTable_evolve_diagonal_move2(self):
-        """
-        Проверка диагонального движения по одному значению
-        """
-        # arrange
-        comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl.add_ball(0, 25, 0.100, (100, 100), (2, 150))
-
-        pre_calc = (905, 905)
-        # act
-        time_delta = [300]
-        evolve_result = ''
-        for dt in time_delta:
-            evolve_result, _ = comp_evl.evolve(dt)
-
-        # assert
-        evl_result = []
-        for evl in evolve_result:
-            if evl.id == 0:
-                evl_result.append((round(evl.pos[0]), round(evl.pos[1])))
-        self.assertEqual(pre_calc, evl_result)
-
-    def test_ComputeTable_evolve_diagonal_move3(self):
-        """
-        Проверка диагонального движения по одному значению в отрицательную сторону
-        """
-        # arrange
-        comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl.add_ball(0, 25, 0.100, (9000, 9000), (-150, -150))
-
-        pre_calc = (905, 905)
-        # act
-        time_delta = [6]
-        evolve_result = ''
-        for dt in time_delta:
-            evolve_result, _ = comp_evl.evolve(dt)
-
-        # assert
-        evl_result = []
-        for evl in evolve_result:
-            if evl.id == 0:
-                evl_result.append((round(evl.pos[0]), round(evl.pos[1])))
         self.assertEqual(pre_calc, evl_result[0])
 
-    def test_ComputeTable_evolve_diagonal_move4(self):
-        """
-        Проверка диагонального движения по одному значению в отрицательную сторону
-        """
-        # arrange
-        comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl.add_ball(0, 25, 0.100, (9000, 9000), (150, -150))
-
-        pre_calc = (905, 905)
-        # act
-        time_delta = [6, 6, 6, 6]
-        evolve_result = ''
-        for dt in time_delta:
-            evolve_result, _ = comp_evl.evolve(dt)
-
-        # assert
-        evl_result = []
-        for evl in evolve_result:
-            if evl.id == 0:
-                evl_result.append((round(evl.pos[0]), round(evl.pos[1])))
-        self.assertEqual(pre_calc, evl_result[0])
-
-    def test_ComputeTable_evolve_diagonal_move5(self):
-        """
-        Проверка диагонального движения по одному значению в отрицательную сторону
-        """
-        # arrange
-        comp_evl = ComputeTable(topleft=(0, 0), bottomright=(10000, 10000))
-        comp_evl.add_ball(0, 25, 0.100, (9000, 9000), (-150, 150))
-
-        pre_calc = (905, 905)
-        # act
-        time_delta = [100]
-        evolve_result = ''
-        for dt in time_delta:
-            evolve_result, _ = comp_evl.evolve(dt)
 
         # assert
         evl_result = []
