@@ -73,6 +73,8 @@ class Checker:
             shine_pos = self.rectangle[0] - self.shine_range, self.rectangle[1] - self.shine_range
             self.parent_surface.blit(self.shine, shine_pos)
 
+        self.rectangle = (self.center[0] - self.radius, self.center[1] - self.radius,
+                          self.radius * 2, self.radius * 2)
         self.parent_surface.blit(self.image, (self.rectangle[0], self.rectangle[1]))
 
 
@@ -153,7 +155,7 @@ class Board:
         self.dir_path = dir_path
         self.parent_surface = parent_surface
         self.size = self.width, self.height = board_size
-        self.compute_table : ComputeTable = None
+        self.compute_table: ComputeTable = None
 
         self.markup = []
         self.borders_size = 15
@@ -197,7 +199,9 @@ class Board:
         # код для текущего состояния доски
         self.black_line = 1
         self.white_line = rang
-        self.block_side: Color = Color.Non
+        self.round = 1
+        self.current_step : Color = Color.White
+        self.removed_opposite = False
 
         # код для хранения шашек
         self.selected_checker = None
@@ -218,6 +222,22 @@ class Board:
         self.white_line = self.rang
         self.fill_checkers()
 
+    def continue_game(self, victory_side:Color):
+        if victory_side == Color.White:
+            self.white_line -=1
+            if self.white_line <= self.black_line:
+                self.black_line = self.white_line - 1
+        if victory_side == Color.Black:
+            self.black_line += 1
+            if self.black_line <= self.white_line:
+                self.white_line = self.black_line + 1
+        if victory_side == Color.Non:
+            if self.black_line != 1:
+                self.black_line -= 1
+            if self.white_line != self.rang:
+                self.white_line +=1
+        self.fill_checkers()
+
     def draw(self, time_delta):
         for element in self.markup:
             self.parent_surface.blit(*element)
@@ -233,15 +253,30 @@ class Board:
                 self.force_choicer.draw(time_delta)
         else:
             result, status = self.compute_table.evolve(time_delta)
+            non_appeared_checkers: tuple[Checker] = self.checkers.copy()
             for result_checker in result:
                 for element_checker in self.checkers:
                     if result_checker.id == element_checker.id:
                         element_checker.center = result_checker.pos
+                        non_appeared_checkers.remove(element_checker)
+
+
+            for checker in non_appeared_checkers:
+                if self.current_step != checker.side:
+                    self.removed_opposite = True
+                self.checkers.remove(checker)
 
             for checker in self.checkers:
                 checker.draw(time_delta)
             if not status:
                 self.compute_table = None
+                if self.removed_opposite:
+                    self.removed_opposite = True
+                else:
+                    if self.current_step == Color.White:
+                        self.current_step = Color.Black
+                    else:
+                        self.current_step = Color.White
 
 
     def hand_to_checker(self, checker):
@@ -274,7 +309,7 @@ class Board:
                                  self.cell_size[1] * (self.black_line - 1)
                         new = Checker(self.parent_surface, center, 0.100, 25, Color.Black, self.dir_path, id)
                         self.checkers.append(new)
-                        id +=1
+                        id += 1
                     elif cell[1] == self.white_line:
                         center = self.indentations[0] + self.borders_size + center_tur[0] + self.cell_size[0] * (x - 1), \
                                  self.indentations[1] + self.borders_size + \
@@ -304,7 +339,8 @@ class Board:
                             else:
                                 if self.selected_checker:
                                     self.selected_checker.selected = False
-                                if self.block_side != checker.side:
+                                if self.current_step != checker.side:
+                                    print(checker.center)
                                     checker.selected = True
                                     self.selected_checker = checker
                             # убираем руку при изменении выбранной шашки
@@ -333,22 +369,38 @@ class Board:
                 self.selected_checker = None
                 self.punch(force, self.punch_coordinates, id)
 
-    def punch(self, force : float, punch_coordinates: [int,int], id):
+    def punch(self, force: float, punch_coordinates: [int, int], id):
         punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1]
         print(f'Совершен удар по {id}: сила = {force}; направление = {punch_coordinates}')
-        self.compute_table = ComputeTable(self.size)
+        rect = self.parent_surface.get_rect(topleft=self.indentations)
+        self.compute_table = ComputeTable(rect.topleft, rect.bottomright)
         for checker in self.checkers:
             id_cheker = checker.id
             radius = checker.radius
             mass = checker.mass
             pos = checker.center
             if id == id_cheker:
-                velocity = punch_coordinates[0] * (force/mass), punch_coordinates[1] * (force/mass)
+                velocity = punch_coordinates[0] * (force / mass), punch_coordinates[1] * (force / mass)
             else:
-                velocity = [0,0]
+                velocity = [0, 0]
             self.compute_table.add_ball(id_cheker, radius, mass, pos, velocity)
 
+    def check_victory(self):
+        is_whites = False
+        is_blacks = False
+        for checker in self.checkers:
+            if checker.side == Color.White:
+                is_whites = True
+            if checker.side == Color.Black:
+                is_blacks = True
 
+
+        if is_whites and not is_blacks:
+            self.continue_game(Color.White)
+            return f'Победа белых в раунде {self.round}'
+        if is_blacks and not is_whites:
+            self.continue_game(Color.Black)
+            return f'Победа чёрных в раунде {self.round}'
 
 
 if __name__ == '__main__':
@@ -377,6 +429,7 @@ if __name__ == '__main__':
         display.blit(game_surface, indentations)
         game_surface.fill('#DECAFF')
         board.draw(dt)
+
 
         for event in pg.event.get():
             if event.type == pg.QUIT:

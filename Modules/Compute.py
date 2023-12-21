@@ -38,12 +38,13 @@ class ComputeBall:
 
 
 class ComputeTable:
-    def __init__(self, size):
-        self.size = size
+    def __init__(self, topleft, bottomright):
+        self.bottomright = bottomright
+        self.topleft = topleft
         self.balls: list[ComputeBall] = []
         self.end_time = 0
         self.end_positions: list[ComputeBall] = []
-        self.collisions = []
+        self.kicked_balls = []
 
     def add_ball(self, id, radius, mass, pos, velocity):
         ball = ComputeBall(id, radius, mass, pos, velocity)
@@ -78,6 +79,13 @@ class ComputeTable:
 
         for ball in self.balls:
             self.move(ball, dt)
+
+        # out_of_range_balls = []
+        # for ball in self.balls:
+        #     if (ball.pos[0] < 0) or (ball.pos[0] < 0) or (ball.pos[0] > self.size[0]) or (ball.pos[1] > self.size[1]):
+        #         out_of_range_balls.append(ball)
+        # for ball in out_of_range_balls:
+        #     self.balls.remove(ball)
 
         movable_balls.clear()
         movable_balls = []
@@ -156,6 +164,13 @@ class ComputeTable:
                 new_velocity[1] = ball.velocity[1] - deceleration(ball.mass) * dt
         ball.velocity = new_velocity
         ball.pos = new_pos
+
+        for ball in self.balls:
+            if (ball.pos[0] < self.topleft[0]) or (ball.pos[1] < self.topleft[1]) or (ball.pos[0] > 605) or (ball.pos[1] > 605):
+                self.kicked_balls.append(ball)
+            for ball in self.kicked_balls:
+                if ball in self.balls:
+                    self.balls.remove(ball)
 
     def elastic_collision(self, first_ball: ComputeBall, second_ball: ComputeBall):
         pos_diff = np.subtract(second_ball.pos, first_ball.pos)

@@ -93,9 +93,13 @@ class Scene:
 
 class MainScene(Scene):
     def __init__(self, appcontext: AppContext, resolution: (int, int)):
+        self.hide_right = True
+        if self.hide_right:
+            resolution = 970, resolution[1]
         super().__init__(appcontext, resolution)
 
         self.battle_log = ''
+
 
         # создание разметки
         self.create_static_markup()
@@ -120,33 +124,38 @@ class MainScene(Scene):
                                                              start_value=0,
                                                              manager=self.ui_manager)
 
-        total_battles_label = self.create_label((59, 566, 102, 25), 'Кол-во игр', '#standart')
-        self.total_bot_battles_label = self.create_label((56, 608, 104, 25), f'С ботами: {appcontext.user.bot_games}',
-                                                         '#standart')
-        self.total_player_battles_label = self.create_label((56, 650, 90, 25),
-                                                            f'Вдвоём: {appcontext.user.player_games}',
-                                                            '#standart')
+        if not self.hide_right:
+            total_battles_label = self.create_label((59, 566, 102, 25), 'Кол-во игр', '#standart')
+            self.total_bot_battles_label = self.create_label((56, 608, 104, 25), f'С ботами: {appcontext.user.bot_games}',
+                                                             '#standart')
+            self.total_player_battles_label = self.create_label((56, 650, 90, 25),
+                                                                f'Вдвоём: {appcontext.user.player_games}',
+                                                                '#standart')
 
-        match_info_label = self.create_label((1032, 24, 190, 25), 'Информация о матче', '#standart')
-        self.match_player1_label = self.create_label((997, 74, 190, 25), 'Игрок 1:', '#standart')
-        self.match_player2_label = self.create_label((997, 109, 190, 25), 'Игрок 2:', '#standart')
-        match_log_textbox = pgui.elements.UITextBox('', pg.Rect(986, 150, 280, 214), manager=self.ui_manager,
-                                                    object_id='#whitetextbox')
+            match_info_label = self.create_label((1032, 24, 190, 25), 'Информация о матче', '#standart')
+            self.match_player1_label = self.create_label((997, 74, 190, 25), 'Игрок 1:', '#standart')
+            self.match_player2_label = self.create_label((997, 109, 190, 25), 'Игрок 2:', '#standart')
+            match_log_textbox = pgui.elements.UITextBox('', pg.Rect(986, 150, 280, 214), manager=self.ui_manager,
+                                                        object_id='#whitetextbox')
 
-        control_main_label = self.create_label((1073, 393, 105, 22), 'Управление', '#standart')
-        control = list()
-        control.append('Задание слайдером')
-        control.append('Интерактивное')
-        self.control_drop = self.create_drop((998, 430, 260, 30), control)
+            control_main_label = self.create_label((1073, 393, 105, 22), 'Управление', '#standart')
+            control = list()
+            control.append('Задание слайдером')
+            control.append('Интерактивное')
+            self.control_drop = self.create_drop((998, 430, 260, 30), control)
 
-        self.force_label = self.create_label((998, 508, 150, 25), f'Сила удара: {10.0}f', '#standart')
-        self.force_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(998, 545, 257, 20), value_range=(0.0, 10.0),
-                                                             start_value=10.0,
-                                                             manager=self.ui_manager)
-        board_surface = pg.Surface((550, 550))
-        board_surface.fill('Black')
-        self.pg_elements.append((board_surface, (365, 85)))
-        self.board = Board(board_surface, DIR_PATH)
+            self.force_label = self.create_label((998, 508, 150, 25), f'Сила удара: {10.0}f', '#standart')
+            self.force_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(998, 545, 257, 20), value_range=(0.0, 10.0),
+                                                                 start_value=10.0,
+                                                                 manager=self.ui_manager)
+        gs_r = (660, 720)
+
+        self.game_surface = pg.Surface((660, 720))
+        self.game_surface.fill('White')
+        self.board_size = 550, 550
+        self.indentations = ((gs_r[0] - self.board_size[0]) / 2), (gs_r[0] - self.board_size[1]) / 2
+        self.pg_elements.append((self.game_surface, (310, 0)))
+        self.board = Board(self.game_surface, self.board_size, self.indentations, DIR_PATH)
 
         self.loop = True
         self.time_delta = 0
@@ -157,7 +166,13 @@ class MainScene(Scene):
         while self.loop:
             for element in self.pg_elements:
                 self.display.blit(*element)
+            self.game_surface.fill('White')
             self.board.draw(self.time_delta)
+
+            victory = self.board.check_victory()
+            if victory:
+                self.create_message((200, 200, 300, 200), victory)
+
 
             for event in pg.event.get():
                 self.ui_manager.process_events(event)
@@ -171,13 +186,35 @@ class MainScene(Scene):
                 if event.type == pgui.UI_BUTTON_PRESSED:
                     if event.ui_element == self.bot_button:
                         print('Bot button')
+                        Board.start_new_game(self.board)
                     elif event.ui_element == self.player_button:
                         print('Player button')
+                        Board.start_new_game(self.board)
                 if event.type == pgui.UI_HORIZONTAL_SLIDER_MOVED:
                     if event.ui_element == self.music_scroll:
                         print('Music slider:', event.value)
                     elif event.ui_element == self.force_scroll:
                         print('Force slider:', event.value)
+                board_rect = self.game_surface.get_rect(topleft=(310, 0))
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        if board_rect.collidepoint(event.pos):
+                            self.board.process_click(
+                                (event.pos[0] - 310, event.pos[1]))
+                else:
+                    try:
+                        if pg.mouse.get_pressed()[0]:
+                            if board_rect.collidepoint(event.pos):
+                                self.board.process_handling(
+                                    (event.pos[0] - 310, event.pos[1]), 1)
+                    except:
+                        pass
+
+                if event.type == pg.MOUSEBUTTONDOWN and event.button == 3 and board_rect.collidepoint(event.pos):
+                    self.board.forcing(True, (event.pos[0] - 310, event.pos[1]))
+                elif event.type == pg.MOUSEBUTTONUP and event.button == 3 and self.board.force_choicer.visible:
+                    self.board.forcing(False,
+                                       (event.pos[0] - 310, event.pos[1]))
 
             self.ui_manager.update(self.time_delta)
             self.ui_manager.draw_ui(self.display)
@@ -198,14 +235,14 @@ class MainScene(Scene):
     def create_static_markup(self):
         grey_box1 = pg.Surface((310, 720))
         grey_box1.fill('#E3E3E3')
-        grey_box2 = pg.Surface((310, 720))
-        grey_box2.fill('#D9D9D9')
         self.pg_elements.append((grey_box1, (0, 0)))
-        self.pg_elements.append((grey_box2, (970, 0)))
-
-        control_line = pg.Surface((280, 5))
-        control_line.fill('black')
-        self.pg_elements.append((control_line, (985, 380)))
+        if not self.hide_right:
+            grey_box2 = pg.Surface((310, 720))
+            grey_box2.fill('#D9D9D9')
+            self.pg_elements.append((grey_box2, (970, 0)))
+            control_line = pg.Surface((280, 5))
+            control_line.fill('black')
+            self.pg_elements.append((control_line, (985, 380)))
 
 
 class LoginScene(Scene):
