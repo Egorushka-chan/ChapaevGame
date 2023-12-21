@@ -8,6 +8,15 @@ EARTH_FORCE = 9.807
 INF = float("inf")
 
 
+def calculate_trigonometry(x, y):
+    rads = math.atan2(y, x)
+    rads %= 2 * math.pi
+    degs = math.degrees(rads)
+    x = abs(math.cos(rads))
+    y = abs(math.sin(rads))
+    return degs, rads, x, y
+
+
 def sign(num):
     if num > 0:
         return 1
@@ -163,10 +172,11 @@ class ComputeTable:
         total_vel = abs(ball.velocity[0]) + abs(ball.velocity[1])
         vel1_scale = abs(ball.velocity[0]) / total_vel
         vel2_scale = abs(ball.velocity[1]) / total_vel
-        
-        decel = deceleration(ball.mass)
 
-        total_vector_velocity = math.sqrt(abs(ball.velocity[0]) ** 2 + abs(ball.velocity[1]) ** 2)
+        decel = deceleration(ball.mass)
+        a, rads, cos_a, sin_a = calculate_trigonometry(ball.velocity[0], ball.velocity[1])
+
+        total_vector_velocity = abs(ball.velocity[0] * cos_a) + abs(ball.velocity[1] * sin_a)
         # total_path = math.sqrt(abs(ball.velocity[0] * dt) ** 2 + abs(ball.velocity[1] * dt) ** 2)
         # total_path_friction = deceleration(ball.mass) * dt
 
@@ -174,42 +184,54 @@ class ComputeTable:
             stop_time = ball.calc_stop_time()
             if stop_time < dt:
                 dt = stop_time
-            sign_0 = sign(ball.velocity[0])
-            sign_1 = sign(ball.velocity[1])
 
-            if ball.velocity[0] != 0:
-                new_pos[0] = ball.pos[0] + ball.velocity[0] * dt - (decel * (dt ** 2)) / 2
-                if sign_0 != sign(new_pos[0]):
-                    new_pos[0] = ball.pos[0]
-            if ball.velocity[1] != 0:
-                new_pos[1] = ball.pos[1] + ball.velocity[1] * dt - (decel * (dt ** 2)) / 2
-                if sign_1 != sign(new_pos[1]):
-                    new_pos[1] = ball.pos[1]
 
-            if ball.velocity[0] == 0:
-                assert new_pos[0] == ball.pos[0], 'Шашка переместилась без скорости по 0'
-            if ball.velocity[1] == 0:
-                assert new_pos[1] == ball.pos[1], 'Шашка переместилась без скорости по 1'
 
-            new_velocity[0] = ball.velocity[0] - decel * dt * sign_0  * vel1_scale
-            if abs(new_velocity[0]) > abs(ball.velocity[0]):
-                assert abs(new_velocity[0]) > abs(ball.velocity[0]), (f'Шашка {ball.id} ускорилась при движении по 0, '
-                                                                      f'стр_скр: {ball.velocity[0]}, '
-                                                                      f'нов_вел: {new_velocity[0]}, '
-                                                                      f'зам= {decel}, '
-                                                                      f'dt= {dt}, '
-                                                                      f'sign={sign_0}, '
-                                                                      f'vel1_scale={vel1_scale}')
+            # не подходит, при маленьком значении одной скорости при большой другой (пример: (2, 102)) и тд,
+            # на большой дельте времени эта двойка из примера уходила по дуге в противоположную сторону
+            # if ball.velocity[0] != 0:
+            #     new_pos[0] = ball.pos[0] + ball.velocity[0] * dt - (decel * (dt ** 2)) / 2
+            # if ball.velocity[1] != 0:
+            #     new_pos[1] = ball.pos[1] + ball.velocity[1] * dt - (decel * (dt ** 2)) / 2
 
-            new_velocity[1] = ball.velocity[1] - decel * dt * sign_1 * vel2_scale
-            if abs(new_velocity[1]) > abs(ball.velocity[1]):
-                assert abs(new_velocity[1]) > abs(ball.velocity[1]), (f'Шашка {ball.id} ускорилась при движении по 1, '
-                                                                      f'стр_скр: {ball.velocity[1]}, '
-                                                                      f'нов_скр: {new_velocity[1]}, '
-                                                                      f'зам= {decel}, '
-                                                                      f'dt= {dt}, '
-                                                                      f'sign={sign_1}, '
-                                                                      f'vel1_scale={vel2_scale}')
+            # Решение: находим время до предполагаемого конца пути. Там наша двойка 100% будет 0, а затем аппроксимируем
+            # это время на нашу дельту времени
+
+            # end_pos = (ball.pos[0] + ball.velocity[0] * stop_time - (decel * (stop_time ** 2) * vel1_scale) / 2,
+            #            ball.pos[1] + ball.velocity[1] * stop_time - (decel * (stop_time ** 2)* vel2_scale) / 2)
+            paths = stop_time / dt
+            path_velocity_step = ball.velocity[0] / paths, ball.velocity[1] / paths
+            # path_pos_step = end_pos[0] / paths, end_pos[1]/ paths
+            new_velocity = ball.velocity[0] - path_velocity_step[0], ball.velocity[1] - path_velocity_step[1]
+            new_pos = (ball.pos[0] + ball.velocity[0] * dt * cos_a - (decel * (dt ** 2)) * cos_a / 2,
+                       ball.pos[1] + ball.velocity[1] * dt * sin_a - (decel * (dt ** 2)) * sin_a / 2)
+
+            i = 1
+
+            # if ball.velocity[0] == 0:
+            #     assert new_pos[0] == ball.pos[0], 'Шашка переместилась без скорости по 0'
+            # if ball.velocity[1] == 0:
+            #     assert new_pos[1] == ball.pos[1], 'Шашка переместилась без скорости по 1'
+
+            # new_velocity[0] = ball.velocity[0] - decel * dt * signs_vel[0] * vel1_scale
+            # if abs(new_velocity[0]) > abs(ball.velocity[0]):
+            #     assert abs(new_velocity[0]) > abs(ball.velocity[0]), (f'Шашка {ball.id} ускорилась при движении по 0, '
+            #                                                           f'стр_скр: {ball.velocity[0]}, '
+            #                                                           f'нов_вел: {new_velocity[0]}, '
+            #                                                           f'зам= {decel}, '
+            #                                                           f'dt= {dt}, '
+            #                                                           f'sign={signs_vel[0]}, '
+            #                                                           f'vel1_scale={vel1_scale}')
+            #
+            # new_velocity[1] = ball.velocity[1] - decel * dt * signs_vel[1] * vel2_scale
+            # if abs(new_velocity[1]) > abs(ball.velocity[1]):
+            #     assert abs(new_velocity[1]) > abs(ball.velocity[1]), (f'Шашка {ball.id} ускорилась при движении по 1, '
+            #                                                           f'стр_скр: {ball.velocity[1]}, '
+            #                                                           f'нов_скр: {new_velocity[1]}, '
+            #                                                           f'зам= {decel}, '
+            #                                                           f'dt= {dt}, '
+            #                                                           f'sign={signs_vel[1]}, '
+            #                                                           f'vel1_scale={vel2_scale}')
 
         # версия движения 1.0
         # if abs(ball.velocity[0]) > decel:
@@ -229,13 +251,14 @@ class ComputeTable:
         ball.velocity = new_velocity
         ball.pos = new_pos
 
-        for ball in self.balls:
-            if (ball.pos[0] < self.topleft[0]) or (ball.pos[1] < self.topleft[1]) or (ball.pos[0] > self.bottomright[0]-self.topleft[0]) or (
-                    ball.pos[1] > self.bottomright[1]-self.topleft[1]):
-                self.kicked_balls.append(ball)
-            for ball in self.kicked_balls:
-                if ball in self.balls:
-                    self.balls.remove(ball)
+        # for ball in self.balls:
+        #     if (ball.pos[0] < self.topleft[0]) or (ball.pos[1] < self.topleft[1]) or (
+        #             ball.pos[0] > self.bottomright[0] - self.topleft[0]) or (
+        #             ball.pos[1] > self.bottomright[1] - self.topleft[1]):
+        #         self.kicked_balls.append(ball)
+        #     for ball in self.kicked_balls:
+        #         if ball in self.balls:
+        #             self.balls.remove(ball)
 
     def elastic_collision(self, first_ball: ComputeBall, second_ball: ComputeBall):
         pos_diff = np.subtract(second_ball.pos, first_ball.pos)
@@ -279,6 +302,12 @@ class ComputeTable:
 
 if __name__ == '__main__':
     # тестирование работы двух методов: априорного и апостериорного:
+    res = []
+    res.append(calculate_trigonometry(1, 0))
+    res.append(calculate_trigonometry(0, 1))
+    res.append(calculate_trigonometry(1, 1))
+    res.append(calculate_trigonometry(-1, -1))
+
     comp_evl = ComputeTable(topleft=(55, 55), bottomright=(715, 715))
     comp_evl.add_ball(0, 25, 0.100, (102, 102), (0, 0))
     comp_evl.add_ball(1, 25, 0.100, (167, 102), (0, 0))
