@@ -1,3 +1,4 @@
+from datetime import datetime
 import math
 
 import numpy as np
@@ -153,7 +154,7 @@ class ComputeTable:
                 total_time = total_time + max_time
                 return balls, total_time
 
-        return self.recur(balls.copy(), dt, total_time)
+        return self.recur(balls.copy(), total_time)
 
     def move(self, ball: ComputeBall, dt):
         new_pos = [ball.pos[0], ball.pos[1]]
@@ -255,22 +256,40 @@ class ComputeTable:
 
 
 if __name__ == '__main__':
+    # тестирование работы двух методов: априорного и апостериорного:
     comp = ComputeTable(topleft=(55,55), bottomright = (715, 715))
-    comp.add_ball(1, 25, 0.100, (102, 102), (90.07, -1.92))
-    comp.add_ball(2, 25, 0.100, (167, 102), (0, 0))
+    comp.add_ball(0, 25, 0.100, (102, 102), (2, 90))
+    comp.add_ball(1, 25, 0.100, (167, 102), (0, 0))
     comp.add_ball(2, 25, 0.100, (232, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (297, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (362, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (427, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (492, 102), (0, 0))
-    comp.add_ball(2, 25, 0.100, (557, 102), (0, 0))
-    comp.add_ball(1, 25, 0.100, (102, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (167, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (232, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (297, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (362, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (427, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (492, 557), (0, 0))
-    comp.add_ball(2, 25, 0.100, (557, 557), (0, 0))
+    comp.add_ball(3, 25, 0.100, (297, 102), (0, 0))
+    comp.add_ball(4, 25, 0.100, (362, 102), (0, 0))
+    comp.add_ball(5, 25, 0.100, (427, 102), (0, 0))
+    comp.add_ball(6, 25, 0.100, (492, 102), (0, 0))
+    comp.add_ball(7, 25, 0.100, (557, 102), (0, 0))
+    comp.add_ball(8, 25, 0.100, (102, 557), (0, 0))
+    comp.add_ball(9, 25, 0.100, (167, 557), (0, 0))
+    comp.add_ball(10, 25, 0.100, (232, 557), (0, 0))
+    comp.add_ball(11, 25, 0.100, (297, 557), (0, 0))
+    comp.add_ball(12, 25, 0.100, (362, 557), (0, 0))
+    comp.add_ball(13, 25, 0.100, (427, 557), (0, 0))
+    comp.add_ball(14, 25, 0.100, (492, 557), (0, 0))
+    comp.add_ball(15, 25, 0.100, (557, 557), (0, 0))
+    status = True
+    last_time = datetime.now()
+    time_delta = 0
+    total_seconds = 0
+    result = ''
+    while status:
+        result, status = comp.evolve(time_delta)
+        now = datetime.now()
+        time_delta = now - last_time
+        time_delta = time_delta.total_seconds()
+        total_seconds += time_delta
     res = comp.compute()
-    print(res)
+    for evl in result:
+        for cmp in res[0]:
+            if evl.id == cmp.id:
+                if evl.pos != cmp.pos:
+                    print(f'У шашки {evl.id} не соответствует позиция: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
+                else:
+                    print(f'Соответствие шашки {evl.id}: evl X={evl.pos[0]} Y={evl.pos[1]}; comp X={cmp.pos[0]} Y={cmp.pos[1]}')
