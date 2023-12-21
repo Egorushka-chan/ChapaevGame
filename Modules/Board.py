@@ -227,15 +227,18 @@ class Board:
             self.white_line -=1
             if self.white_line <= self.black_line:
                 self.black_line = self.white_line - 1
+            self.current_step = Color.White
         if victory_side == Color.Black:
             self.black_line += 1
             if self.black_line <= self.white_line:
                 self.white_line = self.black_line + 1
+            self.current_step = Color.Black
         if victory_side == Color.Non:
             if self.black_line != 1:
                 self.black_line -= 1
             if self.white_line != self.rang:
                 self.white_line +=1
+            self.current_step = Color.White
         self.fill_checkers()
 
     def draw(self, time_delta):
@@ -253,7 +256,7 @@ class Board:
                 self.force_choicer.draw(time_delta)
         else:
             result, status = self.compute_table.evolve(time_delta)
-            non_appeared_checkers: tuple[Checker] = self.checkers.copy()
+            non_appeared_checkers: list[Checker] = self.checkers.copy()
             for result_checker in result:
                 for element_checker in self.checkers:
                     if result_checker.id == element_checker.id:
@@ -339,7 +342,7 @@ class Board:
                             else:
                                 if self.selected_checker:
                                     self.selected_checker.selected = False
-                                if self.current_step != checker.side:
+                                if self.current_step == checker.side:
                                     print(checker.center)
                                     checker.selected = True
                                     self.selected_checker = checker
