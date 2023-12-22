@@ -4,8 +4,10 @@ import sys
 
 import pygame as pg, pygame_gui as pgui
 import re as regex
+
+from Modules.BotPlayer import BotPlayer
 from Modules.Database import Database, User
-from Modules.Board import Board
+from Modules.Board import Board, Color
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -100,7 +102,6 @@ class MainScene(Scene):
 
         self.battle_log = ''
 
-
         # создание разметки
         self.create_static_markup()
 
@@ -110,23 +111,26 @@ class MainScene(Scene):
         self.bot_button = self.create_button((27, 111, 256, 44), 'Новая игра с ботом', '#buttonblack')
         self.player_button = self.create_button((27, 186, 256, 44), 'Новая игра вдвоём', '#buttonblack')
 
+        self.hide_music = True
         # музыкальная панель
-        music_main_panel = pgui.elements.UIPanel(pg.Rect(27, 263, 256, 233), manager=self.ui_manager,
-                                                 object_id="#musicpanel")
-        music_title_panel = pgui.elements.UIPanel(pg.Rect(56, 250, 93, 31), manager=self.ui_manager,
-                                                  object_id="#musicpanel")
-        music_title_label = self.create_label((63, 252, 75, 23), 'Музыка', '#musiclabel')
+        if not self.hide_music:
+            music_main_panel = pgui.elements.UIPanel(pg.Rect(27, 263, 256, 233), manager=self.ui_manager,
+                                                     object_id="#musicpanel")
+            music_title_panel = pgui.elements.UIPanel(pg.Rect(56, 250, 93, 31), manager=self.ui_manager,
+                                                      object_id="#musicpanel")
+            music_title_label = self.create_label((63, 252, 75, 23), 'Музыка', '#musiclabel')
 
-        self.music_drop = self.create_music_drop()
+            self.music_drop = self.create_music_drop()
 
-        music_loud_label = self.create_label((56, 342, 100, 55), 'Громкость', '#musiclabel')
-        self.music_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(56, 409, 196, 20), value_range=(0, 100),
-                                                             start_value=0,
-                                                             manager=self.ui_manager)
+            music_loud_label = self.create_label((56, 342, 100, 55), 'Громкость', '#musiclabel')
+            self.music_scroll = pgui.elements.UIHorizontalSlider(pg.Rect(56, 409, 196, 20), value_range=(0, 100),
+                                                                     start_value=0,
+                                                                     manager=self.ui_manager)
 
         if not self.hide_right:
             total_battles_label = self.create_label((59, 566, 102, 25), 'Кол-во игр', '#standart')
-            self.total_bot_battles_label = self.create_label((56, 608, 104, 25), f'С ботами: {appcontext.user.bot_games}',
+            self.total_bot_battles_label = self.create_label((56, 608, 104, 25),
+                                                             f'С ботами: {appcontext.user.bot_games}',
                                                              '#standart')
             self.total_player_battles_label = self.create_label((56, 650, 90, 25),
                                                                 f'Вдвоём: {appcontext.user.player_games}',
@@ -173,7 +177,6 @@ class MainScene(Scene):
             if victory:
                 self.create_message((200, 200, 300, 200), victory)
 
-
             for event in pg.event.get():
                 self.ui_manager.process_events(event)
                 if event.type == pg.QUIT:
@@ -185,10 +188,11 @@ class MainScene(Scene):
                         print("Control option:", event.text)
                 if event.type == pgui.UI_BUTTON_PRESSED:
                     if event.ui_element == self.bot_button:
-                        print('Bot button')
                         Board.start_new_game(self.board)
+                        self.board.bot = BotPlayer(self.board.get_side_ids(Color.Black), self.board_size, (self.indentations[0], self.indentations[1]),
+                                                   Color.Black)
+
                     elif event.ui_element == self.player_button:
-                        print('Player button')
                         Board.start_new_game(self.board)
                 if event.type == pgui.UI_HORIZONTAL_SLIDER_MOVED:
                     if event.ui_element == self.music_scroll:

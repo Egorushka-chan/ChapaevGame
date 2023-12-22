@@ -203,6 +203,8 @@ class Board:
         self.current_step: Color = Color.White
         self.removed_opposite = False
 
+        self.bot = None
+
         # код для хранения шашек
         self.selected_checker = None
         self.checkers: list[Checker] = list()
@@ -230,7 +232,7 @@ class Board:
             self.current_step = Color.White
         if victory_side == Color.Black:
             self.black_line += 1
-            if self.black_line <= self.white_line:
+            if self.black_line >= self.white_line:
                 self.white_line = self.black_line + 1
             self.current_step = Color.Black
         if victory_side == Color.Non:
@@ -254,6 +256,15 @@ class Board:
 
             if self.force_choicer.visible:
                 self.force_choicer.draw(time_delta)
+            if self.bot:
+                if self.current_step == self.bot.side:
+                    new_compute_table = self.create_compute_table()
+                    best_move_id, best_vel = self.bot.get_step_choice(new_compute_table)
+                    result_compute_table = self.create_compute_table()
+                    for ball in result_compute_table.balls:
+                        if ball.id == best_move_id:
+                            ball.velocity = best_vel
+                    self.compute_table = result_compute_table
         else:
             result, status = self.compute_table.evolve(time_delta)
             non_appeared_checkers: list[Checker] = self.checkers.copy()
@@ -280,11 +291,13 @@ class Board:
                     else:
                         self.current_step = Color.White
 
+
+
     def hand_to_checker(self, checker):
         ch_center = checker.center
         degree, rads, x, y = calculate_point_diffs(ch_center, self.point_angle)
         self.punch_coordinates = x, y
-        rotated_hand = pg.transform.rotate(self.hand, degree)  # минусовой градус для правильного оффсета
+        rotated_hand = pg.transform.rotate(self.hand, degree)
         if (degree > 165) and (degree < 195):
             rotated_hand = pg.transform.flip(rotated_hand, False, True)
 
@@ -341,7 +354,6 @@ class Board:
                                 if self.selected_checker:
                                     self.selected_checker.selected = False
                                 if self.current_step == checker.side:
-                                    print(checker.center)
                                     checker.selected = True
                                     self.selected_checker = checker
                             # убираем руку при изменении выбранной шашки
@@ -372,19 +384,22 @@ class Board:
 
     def punch(self, force: float, punch_coordinates: [int, int], id):
         punch_coordinates = punch_coordinates[0] * -1, punch_coordinates[1]
-        print(f'Совершен удар по {id}: сила = {force}; направление = {punch_coordinates}')
+        self.compute_table = self.create_compute_table()
+        for ball in self.compute_table.balls:
+            if ball.id == id:
+                ball.velocity = punch_coordinates[0] * (force / ball.mass), punch_coordinates[1] * (force / ball.mass)
+
+    def create_compute_table(self):
         rect = self.parent_surface.get_rect(topleft=self.indentations)
-        self.compute_table = ComputeTable(rect.topleft, rect.bottomright)
+        compute_table = ComputeTable(rect.topleft, self.size)
         for checker in self.checkers:
             id_cheker = checker.id
             radius = checker.radius
             mass = checker.mass
             pos = checker.center
-            if id == id_cheker:
-                velocity = punch_coordinates[0] * (force / mass), punch_coordinates[1] * (force / mass)
-            else:
-                velocity = [0, 0]
-            self.compute_table.add_ball(id_cheker, radius, mass, pos, velocity)
+            velocity = [0, 0]
+            compute_table.add_ball(id_cheker, radius, mass, pos, velocity)
+        return compute_table
 
     def check_victory(self):
         is_whites = False
@@ -401,6 +416,13 @@ class Board:
         if is_blacks and not is_whites:
             self.continue_game(Color.Black)
             return f'Победа чёрных в раунде {self.round}'
+
+    def get_side_ids(self, side):
+        ids = []
+        for checkers in self.checkers:
+            if checkers.side == side:
+                ids.append(checkers.id)
+        return ids
 
 
 if __name__ == '__main__':
